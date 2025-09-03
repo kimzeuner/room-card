@@ -13,29 +13,27 @@ module.exports = {
         minimize: true
     },
 
-module: {
-  rules: [
-    // TypeScript-Dateien: TS -> minify-html-literals
-    {
-      test: /\.tsx?$/,
-      exclude: /node_modules/,
-      use: [
-        { loader: 'minify-html-literals-loader' },
+    module: {
+      rules: [
         {
-          loader: 'ts-loader',
-          options: { transpileOnly: true }, // Typprüfung läuft separat (optional)
+          test: /\.tsx?$/,
+          exclude: /node_modules/,
+          use: [
+            {
+              loader: 'ts-loader',
+              options: { transpileOnly: true }
+            }
+          ],
         },
+        // (Optional) Nur wenn du ECHTE .js-Dateien im src hast und sie minifizieren willst:
+        // {
+        //   test: /\.m?js$/,
+        //   exclude: /node_modules/,
+        //   use: [{ loader: 'minify-html-literals-loader' }],
+        // },
       ],
     },
 
-    // (Optional) Reine JS-Dateien – nur wenn du tatsächlich .js im src hast
-    // {
-    //   test: /\.m?js$/,
-    //   exclude: /node_modules/,
-    //   use: [{ loader: 'minify-html-literals-loader' }],
-    // },
-  ],
-},
     
     plugins: [
         new webpack.DefinePlugin({
