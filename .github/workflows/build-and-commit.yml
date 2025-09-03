@@ -2,6 +2,16 @@ name: Build and commit artifacts
 
 on:
   workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch oder Tag (z. B. main)"
+        required: false
+        default: "main"
+      force_lock_regen:
+        description: "Lockfile vor Install neu erzeugen?"
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: write
@@ -18,6 +28,23 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event.inputs.ref }}
+
+      - name: Debug manifests (zeigt dir GLASKLAR, was wirklich gebaut wird)
+        run: |
+          echo "== HEAD ==" && git rev-parse --abbrev-ref HEAD && git rev-parse HEAD
+          echo "== package.json ==" && cat package.json
+          echo "== lockfile: typescript lines ==" && (grep -n '"typescript"' package-lock.json || true)
+          echo "== search ts-auto-mock ==" && (grep -R "ts-auto-mock" -n || true)
+          echo "== search jest-ts-auto-mock ==" && (grep -R "jest-ts-auto-mock" -n || true)
+
+      - name: Optional: Lockfile neu erzeugen (falls veraltet)
+        if: ${{ github.event.inputs.force_lock_regen == true }}
+        run: |
+          rm -f package-lock.json
+          npm install --package-lock-only
+          echo "== lockfile nach regen: typescript lines ==" && (grep -n '"typescript"' package-lock.json || true)
+          echo "== search ts-auto-mock nach regen ==" && (grep -R "ts-auto-mock" -n || true)
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -28,18 +55,16 @@ jobs:
       - name: Install deps
         run: npm ci
 
-      # Erst TS-Prüfung mit verständlichen Meldungen
-      - name: Type-check (no emit)
+      - name: Type-check (optional, nur Info)
         run: npx tsc --noEmit || true
 
-      # Danach der eigentliche Build (ohne prebuild/yarn)
-      - name: Build with webpack (verbose)
+      - name: Build with webpack
         run: npx webpack -c webpack.config.js --stats=errors-warnings --color
 
       - name: Verify outputs
         run: ls -l room-card.js room-card.js.gz
 
-      - name: Commit built files (room-card.js + .gz)
+      - name: Commit built files
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "build(ci): update room-card.js (+gz)"
