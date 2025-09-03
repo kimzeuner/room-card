@@ -85,6 +85,8 @@ export default class RoomCard extends LitElement {
 
   async setConfig(config: RoomCardConfig) {
     // checkConfig darf *nicht* die Anzeige verhindern
+    this._configError = undefined; 
+    
     try {
       checkConfig(config);
     } catch (e: any) {
