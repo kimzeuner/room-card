@@ -159,50 +159,13 @@ export class RoomCard extends LitElement {
 
   // ----- Rendering -----
   render(): TemplateResult {
-    if (!this.config) return html``;
-  
-    // Wenn noch kein hass (z. B. im Editor), kleine Vorschau statt blank
+    // 1) Immer sichtbar – egal was die Config macht
     if (!this._hass) {
-      const t = this.config.title ?? "Room";
-      return html`
-        <ha-card elevation="2">
-          <div class="card-header"><div class="name">${t}</div></div>
-          <div style="padding:12px; opacity:0.7;">Preview…</div>
-        </ha-card>
-      `;
+      return html`<ha-card><div style="padding:12px">It works (preview, no hass)</div></ha-card>`;
     }
-  
-    // Falls checkConfig o. ä. gemeckert hat → sichtbar machen
-    if (this._configError) {
-      return html`<hui-warning>${this._configError}</hui-warning>`;
-    }
-  
-    try {
-      // ⚠️ parseConfig *innerhalb* des try/catch
-      const { entity, info_entities, entities, rows, stateObj } =
-        parseConfig(this.config, this._hass);
-      this.stateObj = stateObj;
-  
-      return html`
-        <ha-card elevation="2" style="${entityStyles(this.config.card_styles, stateObj, this._hass)}">
-          <div class="card-header">
-            ${renderTitle(this.config, this._hass, this, entity)}
-            <div class="entities-info-row">
-              ${info_entities.map((ie) => renderInfoEntity(ie, this._hass!, this))}
-            </div>
-          </div>
-  
-          ${rows && rows.length > 0
-            ? renderRows(rows, this._hass, this)
-            : renderEntitiesRow(this.config, entities, this._hass, this)}
-  
-          ${this.config.cards?.map((card) => this.createCardElement(card, this._hass!))}
-        </ha-card>
-      `;
-    } catch (error: any) {
-      return html`<hui-warning>${error?.toString?.() ?? error}</hui-warning>`;
-    }
+    return html`<ha-card><div style="padding:12px">It works with hass</div></ha-card>`;
   }
+
 
 
 
