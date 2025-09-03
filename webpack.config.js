@@ -12,27 +12,43 @@ module.exports = {
     optimization: {
         minimize: true
     },
+
     module: {
-        rules: [
+      rules: [
+        // TypeScript: TS -> JS -> minify HTML literals -> (optional) Babel
+        {
+          test: /\.tsx?$/,
+          exclude: /node_modules/,
+          use: [
+            // läuft NACH ts-loader (rechts->links)
             {
-                test: /\.js$/,
-                exclude: /(node_modules)/,
-                use: {
-                    loader: 'babel-loader',
-                    options: {
-                        presets: ['@babel/preset-env'],
-                    },
-                },
+              loader: 'babel-loader',
+              options: { presets: ['@babel/preset-env'] },
             },
+            { loader: 'minify-html-literals-loader' },
             {
-                test: /\.(js|jsx|ts|tsx)$/,
-                use: [
-                  { loader: 'minify-html-literals-loader' }
-                ],
+              loader: 'ts-loader',
+              options: { transpileOnly: true },
             },
-            { test: /\.tsx?$/, loader: "ts-loader" }
-        ],
+          ],
+        },
+    
+        // Reine JS-Dateien
+        {
+          test: /\.m?js$/,
+          exclude: /node_modules/,
+          use: [
+            {
+              loader: 'babel-loader',
+              options: { presets: ['@babel/preset-env'] },
+            },
+            { loader: 'minify-html-literals-loader' },
+          ],
+        },
+      ],
     },
+
+    
     plugins: [
         new webpack.DefinePlugin({
             'process.env.NODE_ENV': JSON.stringify('production'),
