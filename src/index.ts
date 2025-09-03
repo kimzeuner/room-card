@@ -149,11 +149,12 @@ export default class RoomCard extends LitElement {
   // ----- Rendering -----
   render(): TemplateResult {
     if (!this._hass || !this.config) return html``;
-
-    const { entity, info_entities, entities, rows, stateObj } = parseConfig(this.config, this._hass);
-    this.stateObj = stateObj;
-
+  
     try {
+      const { entity, info_entities, entities, rows, stateObj } =
+        parseConfig(this.config, this._hass);
+      this.stateObj = stateObj;
+  
       return html`
         <ha-card elevation="2" style="${entityStyles(this.config.card_styles, stateObj, this._hass)}">
           <div class="card-header">
@@ -162,18 +163,20 @@ export default class RoomCard extends LitElement {
               ${info_entities.map((ie) => renderInfoEntity(ie, this._hass!, this))}
             </div>
           </div>
-
+  
           ${rows && rows.length > 0
             ? renderRows(rows, this._hass, this)
             : renderEntitiesRow(this.config, entities, this._hass, this)}
-
+  
           ${this.config.cards?.map((card) => this.createCardElement(card, this._hass!))}
         </ha-card>
       `;
     } catch (error: any) {
+      // Jetzt siehst du im Dashboard wenigstens die Fehlermeldung
       return html`<hui-warning>${error?.toString?.() ?? error}</hui-warning>`;
     }
   }
+
 
   getCardSize(): number {
     const numberOfCards = this.config?.cards ? this.config.cards.length : 0;
