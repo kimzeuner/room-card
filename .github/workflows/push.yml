@@ -58,4 +58,13 @@ jobs:
             npm ci
           fi
 
-      - name: Type-check (n
+      - name: Type-check (no emit)
+        run: npx tsc --noEmit || true
+
+      - name: Build (smoke)
+        run: npx webpack -c webpack.config.js --stats=errors-warnings --color
+
+      - name: HACS validation
+        uses: hacs/action@main
+        with:
+          category: plugin
