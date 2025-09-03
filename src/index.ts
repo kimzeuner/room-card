@@ -36,7 +36,7 @@ if (!window.customCards.some((c) => c.type === "room-card")) {
   });
 }
 
-@customElement("room-card")
+
 export default class RoomCard extends LitElement {
   // ----- Lovelace Hooks (Editor-Unterstützung) -----
   static getConfigElement() {
@@ -238,7 +238,10 @@ export default class RoomCard extends LitElement {
   }
 }
 
-// Defensive: nur einmal registrieren (falls Ressource doppelt geladen wird)
-if (!customElements.get("room-card")) {
-  customElements.define("room-card", RoomCard);
+
+const TAG = "room-card";
+if (!customElements.get(TAG)) {
+  customElements.define(TAG, RoomCard);
+  console.info("ROOM-CARD: custom element defined");
 }
+export default RoomCard;
