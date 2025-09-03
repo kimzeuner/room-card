@@ -71,13 +71,6 @@ export class RoomCard extends LitElement {
     console.info("ROOM-CARD: updated()", Array.from(changed.keys()));
   }
 
-  protected shouldUpdate(changed: PropertyValues): boolean {
-    const ok = !!this.config && changed.size > 0; // bewusst locker
-    if (!ok) {
-      console.info("ROOM-CARD: shouldUpdate=false", { hasConfig: !!this.config, changed: changed.size });
-    }
-    return ok;
-  }
 
   // ---- Hilfsfunktionen
   private getChildCustomCardTypes(cards: RoomCardLovelaceCardConfig[] | undefined, target: Set<string>) {
