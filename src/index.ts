@@ -148,9 +148,24 @@ export default class RoomCard extends LitElement {
 
   // ----- Rendering -----
   render(): TemplateResult {
-    if (!this._hass || !this.config) return html``;
+    // Ohne Config macht es keinen Sinn zu rendern
+    if (!this.config) return html``;
+  
+    // Wenn im Editor noch kein hass da ist: einfache Vorschau statt leeres Nichts
+    if (!this._hass) {
+      const t = this.config.title ?? "Room";
+      return html`
+        <ha-card elevation="2">
+          <div class="card-header">
+            <div class="name">${t}</div>
+          </div>
+          <div style="padding:12px; opacity:0.7;">Preview…</div>
+        </ha-card>
+      `;
+    }
   
     try {
+      // ⚠️ parseConfig *innerhalb* des try/catch aufrufen
       const { entity, info_entities, entities, rows, stateObj } =
         parseConfig(this.config, this._hass);
       this.stateObj = stateObj;
@@ -172,10 +187,11 @@ export default class RoomCard extends LitElement {
         </ha-card>
       `;
     } catch (error: any) {
-      // Jetzt siehst du im Dashboard wenigstens die Fehlermeldung
+      // Zeige eine sichtbare Warnung statt „gar nichts“
       return html`<hui-warning>${error?.toString?.() ?? error}</hui-warning>`;
     }
   }
+
 
 
   getCardSize(): number {
