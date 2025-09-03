@@ -37,7 +37,7 @@ if (!window.customCards.some((c) => c.type === "room-card")) {
 }
 
 
-export default class RoomCard extends LitElement {
+export class RoomCard extends LitElement {
   // ----- Lovelace Hooks (Editor-Unterstützung) -----
   static getConfigElement() {
     return document.createElement("room-card-editor");
