@@ -1,9 +1,7 @@
 name: Build and commit artifacts
 
 on:
-  # Manuell auslösbar ("Run workflow" im Actions-Tab)
   workflow_dispatch:
-  # Oder automatisch bei Änderungen an Code/Build-Konfig
   push:
     paths:
       - 'src/**'
@@ -23,18 +21,22 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
+          cache: 'npm'
 
       - name: Install deps
         run: npm ci
 
-      - name: Build
-        run: npm run build
+      # WICHTIG: Direkt webpack aufrufen (umgeht "prebuild" & "yarn lint")
+      - name: Build with webpack
+        run: npx webpack -c webpack.config.js
+
+      - name: Verify outputs
+        run: ls -l room-card.js room-card.js.gz
 
       - name: Commit built files (room-card.js + .gz)
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "build: update room-card.js (+gz)"
+          commit_message: "build(ci): update room-card.js (+gz)"
           file_pattern: |
             room-card.js
             room-card.js.gz
