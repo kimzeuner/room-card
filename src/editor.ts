@@ -1,39 +1,36 @@
-import { LitElement, html, css, TemplateResult } from "lit";
+import { LitElement, html, css } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import { repeat } from "lit/directives/repeat.js";
-import type { HomeAssistant, LovelaceCardEditor } from "custom-card-helpers";
+// Keine Typ-Imports -> robust gegen tsconfig ohne "dom" libs
 
 type AnyObj = Record<string, any>;
-type Condition = { entity?: string; attribute?: string; operator?: string; value?: any };
-
 const uid = () => `id_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 
 @customElement("room-card-editor")
-export class RoomCardEditor extends LitElement implements LovelaceCardEditor {
-  @property({ attribute: false }) public hass!: HomeAssistant;
+export class RoomCardEditor extends LitElement {
+  @property({ attribute: false }) public hass: any;
 
   @state() private _config: AnyObj = {};
   @state() private _entities: AnyObj[] = [];
   @state() private _rows: { _id: string; label?: string; entities: AnyObj[] }[] = [];
-  @state() private _hideIf: Condition[] = [];
+  @state() private _hideIf: AnyObj[] = [];
   @state() private _styles: AnyObj = {};
 
   public setConfig(config: AnyObj): void {
     const { hass, entityIds, ...rest } = config || {};
     this._config  = rest || {};
-    // Entities (keyed for stable rendering)
+    // keyed entities
     const ents = Array.isArray(this._config.entities) ? [...this._config.entities] : [];
-    this._entities = ents.map((e: AnyObj) => ({ _id: uid(), ...(e ?? {}) }));
-    // Rows
+    this._entities = ents.map((e: AnyObj) => ({ _id: uid(), ...(e || {}) }));
+    // rows
     const rows = Array.isArray(this._config.rows) ? [...this._config.rows] : [];
     this._rows = rows.map((r: AnyObj) => ({
       _id: uid(),
-      label: r?.label ?? r?.name ?? "",
-      entities: Array.isArray(r?.entities) ? r.entities.map((e: AnyObj) => ({ _id: uid(), ...(e ?? {}) })) : []
+      label: r && (r.label ?? r.name) || "",
+      entities: Array.isArray(r?.entities) ? r.entities.map((e: AnyObj) => ({ _id: uid(), ...(e || {}) })) : []
     }));
-    // Conditions (root-level hide_if)
+    // conditions
     this._hideIf = Array.isArray(this._config.hide_if) ? [...this._config.hide_if] : [];
-    // Styles
+    // styles
     this._styles = this._config.styles && typeof this._config.styles === "object" ? { ...this._config.styles } : {};
   }
 
@@ -71,11 +68,11 @@ export class RoomCardEditor extends LitElement implements LovelaceCardEditor {
       entities: entities.map(({ _id, ...r }) => r)
     }));
     cfg.hide_if = this._hideIf.length ? this._hideIf : undefined;
-    cfg.styles = Object.keys(this._styles||{}).length ? this._styles : undefined;
+    cfg.styles = Object.keys(this._styles || {}).length ? this._styles : undefined;
     this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: cfg } }));
   }
 
-  // ---------- config helpers ----------
+  // ---------- helpers ----------
   private _updateCfg(key: string, value: any) {
     const cfg = { ...this._config };
     if (value === "" || value === undefined) delete cfg[key];
@@ -84,7 +81,7 @@ export class RoomCardEditor extends LitElement implements LovelaceCardEditor {
     this._emit();
   }
 
-  // ---------- entity list helpers ----------
+  // entities
   private _addEntity() {
     this._entities = [...this._entities, { _id: uid(), entity: "" }];
     this.updateComplete.then(() => this._emit());
@@ -104,32 +101,23 @@ export class RoomCardEditor extends LitElement implements LovelaceCardEditor {
     if (value === "" || value === undefined) delete e[key]; else e[key] = value;
     list[i] = e; this._entities = list; this._emit();
   }
-
-  // live icon logic similar to header: prefer explicit icon, else ha-state-icon from entity
   private _entityIconPreview(ent: AnyObj) {
     if (!ent?.show_icon) return html``;
     const st = ent?.entity ? this.hass?.states?.[ent.entity] : undefined;
-    // explicit icon wins
     if (ent?.icon) return html`<ha-state-icon .icon=${ent.icon}></ha-state-icon>`;
     if (st) return html`<ha-state-icon .stateObj=${st}></ha-state-icon>`;
     return html``;
   }
 
-  // ---------- rows helpers ----------
-  private _addRow() {
-    this._rows = [...this._rows, { _id: uid(), label: "", entities: [] }];
-    this._emit();
-  }
-  private _removeRow(i: number) {
-    const rows = [...this._rows]; rows.splice(i, 1);
-    this._rows = rows; this._emit();
-  }
+  // rows
+  private _addRow() { this._rows = [...this._rows, { _id: uid(), label: "", entities: [] }]; this._emit(); }
+  private _removeRow(i: number) { const rows = [...this._rows]; rows.splice(i, 1); this._rows = rows; this._emit(); }
   private _moveRow(i: number, dir: -1 | 1) {
     const j = i + dir; if (j < 0 || j >= this._rows.length) return;
     const arr = [...this._rows]; const [r] = arr.splice(i, 1); arr.splice(j, 0, r);
     this._rows = arr; this._emit();
   }
-  private _updateRowLabel(i: number, v: string) {
+  private _updateRowLabel(i: number, v: any) {
     const arr = [...this._rows]; arr[i] = { ...arr[i], label: v || undefined };
     this._rows = arr; this._emit();
   }
@@ -159,23 +147,23 @@ export class RoomCardEditor extends LitElement implements LovelaceCardEditor {
     row.entities = ents; arr[i] = row; this._rows = arr; this._emit();
   }
 
-  // ---------- conditions ----------
+  // conditions
   private _addCondition() { this._hideIf = [...this._hideIf, { entity: "", operator: "==", value: "off" }]; this._emit(); }
-  private _updateCond(i: number, key: keyof Condition, value: any) {
-    const list = [...this._hideIf]; const c = { ...(list[i] || {}) } as Condition;
+  private _updateCond(i: number, key: string, value: any) {
+    const list = [...this._hideIf]; const c = { ...(list[i] || {}) };
     if (value === "" || value === undefined) delete (c as any)[key]; else (c as any)[key] = value;
     list[i] = c; this._hideIf = list; this._emit();
   }
   private _removeCond(i: number) { const l = [...this._hideIf]; l.splice(i, 1); this._hideIf = l; this._emit(); }
 
-  // ---------- styles ----------
+  // styles
   private _updateStyle(key: string, value: any) {
     const s = { ...(this._styles || {}) };
     if (value === "" || value === undefined) delete s[key]; else s[key] = value;
     this._styles = s; this._emit();
   }
 
-  protected render(): TemplateResult {
+  protected render() {
     if (!this.hass) return html``;
 
     const ActionEditorAvailable = !!customElements.get("hui-action-editor");
@@ -196,7 +184,7 @@ export class RoomCardEditor extends LitElement implements LovelaceCardEditor {
         <ha-icon-picker
           .hass=${this.hass}
           .value=${this._config.icon || ""}
-          @value-changed=${(e: any) => this._updateCfg("icon", e.detail.value || undefined)}
+          @value-changed=${(e: any) => this._updateCfg("icon", e.detail?.value || undefined)}
         ></ha-icon-picker>
       </div>
 
@@ -220,7 +208,7 @@ export class RoomCardEditor extends LitElement implements LovelaceCardEditor {
         <ha-entity-picker
           .hass=${this.hass}
           .value=${this._config.entity || ""}
-          @value-changed=${(e: any) => this._updateCfg("entity", e.detail.value || undefined)}
+          @value-changed=${(e: any) => this._updateCfg("entity", e.detail?.value || undefined)}
           allow-custom-entity
           @closed=${(e: any) => e.stopPropagation()}
         ></ha-entity-picker>
@@ -244,49 +232,43 @@ export class RoomCardEditor extends LitElement implements LovelaceCardEditor {
 
       <!-- Entities -->
       <div class="section">Entities</div>
-      <div class="muted">Live-Vorschau: Icon wie im Header – explizites <code>icon</code> überschreibt das Standard-Icon der Entity.</div>
+      <div class="muted">Live-Icon wie im Header: explizites <code>icon</code> überschreibt das Entity-Icon.</div>
 
-      ${repeat(this._entities, (e) => e._id, (ent, i) => html`
-        <div class="card">
+      ${this._entities.map((ent, i) => html`
+        <div class="card" data-k=${ent._id}>
           <div class="mini">
             ${this._entityIconPreview(ent)}
             <span class="muted subtle">${ent.entity || "—"}</span>
           </div>
-
           <div class="entity-grid">
             <ha-entity-picker
               .hass=${this.hass}
               .value=${ent.entity || ""}
               label="entity"
               allow-custom-entity
-              @value-changed=${(e: any) => this._updateEntity(i, "entity", e.detail.value || undefined)}
+              @value-changed=${(e: any) => this._updateEntity(i, "entity", e.detail?.value || undefined)}
               @closed=${(e: any) => e.stopPropagation()}
             ></ha-entity-picker>
-
             <ha-textfield
               .value=${ent.name ?? ""}
               label="name"
               @input=${(e: any) => this._updateEntity(i, "name", (e.target as any).value || undefined)}
             ></ha-textfield>
-
             <ha-textfield
               .value=${ent.attribute ?? ""}
               label="attribute"
               @input=${(e: any) => this._updateEntity(i, "attribute", (e.target as any).value || undefined)}
             ></ha-textfield>
-
             <ha-textfield
               .value=${ent.unit ?? ""}
               label="unit"
               @input=${(e: any) => this._updateEntity(i, "unit", (e.target as any).value || undefined)}
             ></ha-textfield>
-
             <ha-textfield
               .value=${ent.icon ?? ""}
               label="icon (z. B. mdi:sun)"
               @input=${(e: any) => this._updateEntity(i, "icon", (e.target as any).value || undefined)}
             ></ha-textfield>
-
             <ha-textfield
               .value=${ent.format ?? ""}
               label="format"
@@ -296,28 +278,16 @@ export class RoomCardEditor extends LitElement implements LovelaceCardEditor {
 
           <div class="entity-switches">
             <span class="chips">
-              <ha-switch
-                .checked=${!!ent.show_name}
-                @change=${(e: any) => this._updateEntity(i, "show_name", e.target.checked)}
-              ></ha-switch><span>show_name</span>
+              <ha-switch .checked=${!!ent.show_name} @change=${(e: any) => this._updateEntity(i, "show_name", e.target.checked)}></ha-switch><span>show_name</span>
             </span>
             <span class="chips">
-              <ha-switch
-                .checked=${!!ent.show_icon}
-                @change=${(e: any) => this._updateEntity(i, "show_icon", e.target.checked)}
-              ></ha-switch><span>show_icon</span>
+              <ha-switch .checked=${!!ent.show_icon} @change=${(e: any) => this._updateEntity(i, "show_icon", e.target.checked)}></ha-switch><span>show_icon</span>
             </span>
             <span class="chips">
-              <ha-switch
-                .checked=${!!ent.state_color}
-                @change=${(e: any) => this._updateEntity(i, "state_color", e.target.checked)}
-              ></ha-switch><span>state_color</span>
+              <ha-switch .checked=${!!ent.state_color} @change=${(e: any) => this._updateEntity(i, "state_color", e.target.checked)}></ha-switch><span>state_color</span>
             </span>
             <span class="chips">
-              <ha-switch
-                .checked=${!!ent.toggle}
-                @change=${(e: any) => this._updateEntity(i, "toggle", e.target.checked)}
-              ></ha-switch><span>toggle</span>
+              <ha-switch .checked=${!!ent.toggle} @change=${(e: any) => this._updateEntity(i, "toggle", e.target.checked)}></ha-switch><span>toggle</span>
             </span>
           </div>
 
@@ -363,8 +333,8 @@ export class RoomCardEditor extends LitElement implements LovelaceCardEditor {
 
       <!-- Rows -->
       <div class="section">Rows</div>
-      ${repeat(this._rows, r => r._id, (row, i) => html`
-        <div class="card">
+      ${this._rows.map((row, i) => html`
+        <div class="card" data-k=${row._id}>
           <div class="row-title">Row ${i+1}</div>
           <div class="row">
             <div>Label</div>
@@ -375,13 +345,12 @@ export class RoomCardEditor extends LitElement implements LovelaceCardEditor {
             ></ha-textfield>
           </div>
 
-          ${repeat(row.entities, e => e._id, (cell, j) => html`
-            <div class="card subtle">
+          ${row.entities.map((cell, j) => html`
+            <div class="card subtle" data-k=${cell._id}>
               <div class="mini">
-                ${cell.show_icon ? html`
-                  ${cell.icon ? html`<ha-state-icon .icon=${cell.icon}></ha-state-icon>`
-                              : html`${cell.entity ? html`<ha-state-icon .stateObj=${this.hass?.states?.[cell.entity]}></ha-state-icon>` : html``}`}
-                ` : html``}
+                ${cell.show_icon ? (cell.icon ? html`<ha-state-icon .icon=${cell.icon}></ha-state-icon>`
+                                                : (cell.entity ? html`<ha-state-icon .stateObj=${this.hass?.states?.[cell.entity]}></ha-state-icon>` : html``))
+                                  : html``}
                 <span class="muted">${cell.entity || "—"}</span>
               </div>
               <div class="entity-grid">
@@ -390,7 +359,7 @@ export class RoomCardEditor extends LitElement implements LovelaceCardEditor {
                   .value=${cell.entity || ""}
                   label="entity"
                   allow-custom-entity
-                  @value-changed=${(e: any) => this._updateRowEntity(i, j, "entity", e.detail.value || undefined)}
+                  @value-changed=${(e: any) => this._updateRowEntity(i, j, "entity", e.detail?.value || undefined)}
                   @closed=${(e: any) => e.stopPropagation()}
                 ></ha-entity-picker>
                 <ha-textfield
@@ -408,20 +377,6 @@ export class RoomCardEditor extends LitElement implements LovelaceCardEditor {
                   label="unit"
                   @input=${(e: any) => this._updateRowEntity(i, j, "unit", (e.target as any).value || undefined)}
                 ></ha-textfield>
-              </div>
-              <div class="entity-switches">
-                <span class="chips">
-                  <ha-switch
-                    .checked=${!!cell.show_name}
-                    @change=${(e: any) => this._updateRowEntity(i, j, "show_name", e.target.checked)}
-                  ></ha-switch><span>show_name</span>
-                </span>
-                <span class="chips">
-                  <ha-switch
-                    .checked=${!!cell.show_icon}
-                    @change=${(e: any) => this._updateRowEntity(i, j, "show_icon", e.target.checked)}
-                  ></ha-switch><span>show_icon</span>
-                </span>
               </div>
               <div class="entity-actions">
                 <div>
@@ -446,16 +401,15 @@ export class RoomCardEditor extends LitElement implements LovelaceCardEditor {
       `)}
       <mwc-button raised @click=${this._addRow}>Add row</mwc-button>
 
-      <!-- Conditional Visibility -->
+      <!-- Conditional visibility -->
       <div class="section">Conditional visibility (hide_if)</div>
-      <div class="muted">Einfache Bedingungen; für komplexere Fälle nutze unten den YAML-Block.</div>
       ${this._hideIf.map((c, i) => html`
         <div class="cond-row">
           <ha-entity-picker
             .hass=${this.hass}
             .value=${c.entity || ""}
             allow-custom-entity
-            @value-changed=${(e: any) => this._updateCond(i, "entity", e.detail.value || undefined)}
+            @value-changed=${(e: any) => this._updateCond(i, "entity", e.detail?.value || undefined)}
             @closed=${(e: any) => e.stopPropagation()}
           ></ha-entity-picker>
           <ha-select
@@ -525,7 +479,7 @@ export class RoomCardEditor extends LitElement implements LovelaceCardEditor {
               const { hass, entityIds, entities, rows, hide_if, styles, ...rest } = v;
               this._config = rest || {};
               this._entities = Array.isArray(entities) ? entities.map((x:any)=>({_id:uid(), ...x})) : [];
-              this._rows = Array.isArray(rows) ? rows.map((r:any)=>({_id:uid(), label:r?.label ?? r?.name ?? "", entities:Array.isArray(r?.entities)? r.entities.map((x:any)=>({_id:uid(), ...x})) : []})) : [];
+              this._rows = Array.isArray(rows) ? rows.map((r:any)=>({_id:uid(), label:(r && (r.label ?? r.name)) || "", entities:Array.isArray(r?.entities)? r.entities.map((x:any)=>({_id:uid(), ...x})) : []})) : [];
               this._hideIf = Array.isArray(hide_if) ? [...hide_if] : [];
               this._styles = styles && typeof styles === "object" ? { ...styles } : {};
               this._emit();
