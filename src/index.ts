@@ -53,6 +53,8 @@ export default class RoomCard extends LitElement {
   @property({ attribute: false }) _hass?: HomeAssistant;
   @property({ attribute: false }) config?: RoomCardConfig;
 
+  private _configError?: string;
+
   // Card helpers (werden ggf. dynamisch geladen)
   _helpers?: { createCardElement(config: LovelaceCardConfig): LovelaceCard };
 
@@ -82,23 +84,30 @@ export default class RoomCard extends LitElement {
   }
 
   async setConfig(config: RoomCardConfig) {
-    checkConfig(config);
-
+    // checkConfig darf *nicht* die Anzeige verhindern
+    try {
+      checkConfig(config);
+    } catch (e: any) {
+      this._configError = e?.message || String(e);
+      console.warn("ROOM-CARD config warning:", e);
+    }
+  
     this.config = { ...config, entityIds: getEntityIds(config) };
-
-    // Im Editor nicht auf fremde Custom-Cards warten, um Freeze zu vermeiden
+  
+    // Im Editor nicht auf fremde Custom-Cards warten (Freeze vermeiden)
     const inEditor = document.querySelector("hui-card-editor") !== null;
     if (!inEditor) {
       await this.waitForDependentComponents(this.config);
     }
-
-    // Card helpers laden (falls verfügbar)
+  
+    // Card helpers (falls verfügbar)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const anyWindow = window as any;
     if (typeof anyWindow.loadCardHelpers === "function") {
       this._helpers = await anyWindow.loadCardHelpers();
     }
   }
+
 
   set hass(hass: HomeAssistant) {
     this._hass = hass;
@@ -148,24 +157,26 @@ export default class RoomCard extends LitElement {
 
   // ----- Rendering -----
   render(): TemplateResult {
-    // Ohne Config macht es keinen Sinn zu rendern
     if (!this.config) return html``;
   
-    // Wenn im Editor noch kein hass da ist: einfache Vorschau statt leeres Nichts
+    // Wenn noch kein hass (z. B. im Editor), kleine Vorschau statt blank
     if (!this._hass) {
       const t = this.config.title ?? "Room";
       return html`
         <ha-card elevation="2">
-          <div class="card-header">
-            <div class="name">${t}</div>
-          </div>
+          <div class="card-header"><div class="name">${t}</div></div>
           <div style="padding:12px; opacity:0.7;">Preview…</div>
         </ha-card>
       `;
     }
   
+    // Falls checkConfig o. ä. gemeckert hat → sichtbar machen
+    if (this._configError) {
+      return html`<hui-warning>${this._configError}</hui-warning>`;
+    }
+  
     try {
-      // ⚠️ parseConfig *innerhalb* des try/catch aufrufen
+      // ⚠️ parseConfig *innerhalb* des try/catch
       const { entity, info_entities, entities, rows, stateObj } =
         parseConfig(this.config, this._hass);
       this.stateObj = stateObj;
@@ -187,10 +198,10 @@ export default class RoomCard extends LitElement {
         </ha-card>
       `;
     } catch (error: any) {
-      // Zeige eine sichtbare Warnung statt „gar nichts“
       return html`<hui-warning>${error?.toString?.() ?? error}</hui-warning>`;
     }
   }
+
 
 
 
