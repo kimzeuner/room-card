@@ -1,0 +1,32 @@
+name: Update lockfile
+on: { workflow_dispatch: {} }
+permissions: { contents: write }
+
+jobs:
+  update-lock:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Bump TS in package.json
+        run: |
+          npm pkg set devDependencies.typescript="^5.4.5"
+          npm pkg set devDependencies.tslib="^2.6.2"
+
+      # Lockfile passend zu package.json generieren
+      - name: Regenerate lockfile
+        run: npm install --package-lock-only
+
+      - name: Commit lockfile
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore(ci): regenerate package-lock.json for TS5"
+          file_pattern: |
+            package.json
+            package-lock.json
