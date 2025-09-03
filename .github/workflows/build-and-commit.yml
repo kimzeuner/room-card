@@ -40,7 +40,7 @@ jobs:
           echo "== search ts-auto-mock ==" && (grep -R "ts-auto-mock" -n || true)
           echo "== search jest-ts-auto-mock ==" && (grep -R "jest-ts-auto-mock" -n || true)
 
-      - name: Optional: Lockfile neu erzeugen
+      - name: "Optional: Lockfile neu erzeugen"
         if: ${{ github.event.inputs.force_lock_regen == true }}
         run: |
           rm -f package-lock.json
