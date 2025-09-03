@@ -6,7 +6,7 @@ import type { HomeAssistant, LovelaceCardEditor } from "custom-card-helpers";
 type AnyObj = Record<string, any>;
 type Condition = { entity?: string; attribute?: string; operator?: string; value?: any };
 
-const uid = () => (crypto?.randomUUID?.() ?? `id_${Date.now()}_${Math.random().toString(36).slice(2)}`);
+const uid = () => `id_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 
 @customElement("room-card-editor")
 export class RoomCardEditor extends LitElement implements LovelaceCardEditor {
@@ -187,7 +187,7 @@ export class RoomCardEditor extends LitElement implements LovelaceCardEditor {
         <ha-textfield
           .value=${this._config.title ?? ""}
           label="Title"
-          @input=${(e: any) => this._updateCfg("title", (e.target as HTMLInputElement).value || undefined)}
+          @input=${(e: any) => this._updateCfg("title", (e.target as any).value || undefined)}
         ></ha-textfield>
       </div>
 
@@ -207,7 +207,7 @@ export class RoomCardEditor extends LitElement implements LovelaceCardEditor {
           @value-changed=${(e: any) => this._updateCfg("content_alignment", e.detail?.value)}
           naturalMenuWidth
           fixedMenuPosition
-          @closed=${(e: Event) => e.stopPropagation()}
+          @closed=${(e: any) => e.stopPropagation()}
         >
           <mwc-list-item value="left">Left</mwc-list-item>
           <mwc-list-item value="center">Center</mwc-list-item>
@@ -222,7 +222,7 @@ export class RoomCardEditor extends LitElement implements LovelaceCardEditor {
           .value=${this._config.entity || ""}
           @value-changed=${(e: any) => this._updateCfg("entity", e.detail.value || undefined)}
           allow-custom-entity
-          @closed=${(e: Event) => e.stopPropagation()}
+          @closed=${(e: any) => e.stopPropagation()}
         ></ha-entity-picker>
       </div>
 
@@ -260,37 +260,37 @@ export class RoomCardEditor extends LitElement implements LovelaceCardEditor {
               label="entity"
               allow-custom-entity
               @value-changed=${(e: any) => this._updateEntity(i, "entity", e.detail.value || undefined)}
-              @closed=${(e: Event) => e.stopPropagation()}
+              @closed=${(e: any) => e.stopPropagation()}
             ></ha-entity-picker>
 
             <ha-textfield
               .value=${ent.name ?? ""}
               label="name"
-              @input=${(e: any) => this._updateEntity(i, "name", (e.target as HTMLInputElement).value || undefined)}
+              @input=${(e: any) => this._updateEntity(i, "name", (e.target as any).value || undefined)}
             ></ha-textfield>
 
             <ha-textfield
               .value=${ent.attribute ?? ""}
               label="attribute"
-              @input=${(e: any) => this._updateEntity(i, "attribute", (e.target as HTMLInputElement).value || undefined)}
+              @input=${(e: any) => this._updateEntity(i, "attribute", (e.target as any).value || undefined)}
             ></ha-textfield>
 
             <ha-textfield
               .value=${ent.unit ?? ""}
               label="unit"
-              @input=${(e: any) => this._updateEntity(i, "unit", (e.target as HTMLInputElement).value || undefined)}
+              @input=${(e: any) => this._updateEntity(i, "unit", (e.target as any).value || undefined)}
             ></ha-textfield>
 
             <ha-textfield
               .value=${ent.icon ?? ""}
               label="icon (z. B. mdi:sun)"
-              @input=${(e: any) => this._updateEntity(i, "icon", (e.target as HTMLInputElement).value || undefined)}
+              @input=${(e: any) => this._updateEntity(i, "icon", (e.target as any).value || undefined)}
             ></ha-textfield>
 
             <ha-textfield
               .value=${ent.format ?? ""}
               label="format"
-              @input=${(e: any) => this._updateEntity(i, "format", (e.target as HTMLInputElement).value || undefined)}
+              @input=${(e: any) => this._updateEntity(i, "format", (e.target as any).value || undefined)}
             ></ha-textfield>
           </div>
 
@@ -371,7 +371,7 @@ export class RoomCardEditor extends LitElement implements LovelaceCardEditor {
             <ha-textfield
               .value=${row.label ?? ""}
               label="label"
-              @input=${(e: any) => this._updateRowLabel(i, (e.target as HTMLInputElement).value || "")}
+              @input=${(e: any) => this._updateRowLabel(i, (e.target as any).value || "")}
             ></ha-textfield>
           </div>
 
@@ -391,22 +391,22 @@ export class RoomCardEditor extends LitElement implements LovelaceCardEditor {
                   label="entity"
                   allow-custom-entity
                   @value-changed=${(e: any) => this._updateRowEntity(i, j, "entity", e.detail.value || undefined)}
-                  @closed=${(e: Event) => e.stopPropagation()}
+                  @closed=${(e: any) => e.stopPropagation()}
                 ></ha-entity-picker>
                 <ha-textfield
                   .value=${cell.name ?? ""}
                   label="name"
-                  @input=${(e: any) => this._updateRowEntity(i, j, "name", (e.target as HTMLInputElement).value || undefined)}
+                  @input=${(e: any) => this._updateRowEntity(i, j, "name", (e.target as any).value || undefined)}
                 ></ha-textfield>
                 <ha-textfield
                   .value=${cell.icon ?? ""}
                   label="icon"
-                  @input=${(e: any) => this._updateRowEntity(i, j, "icon", (e.target as HTMLInputElement).value || undefined)}
+                  @input=${(e: any) => this._updateRowEntity(i, j, "icon", (e.target as any).value || undefined)}
                 ></ha-textfield>
                 <ha-textfield
                   .value=${cell.unit ?? ""}
                   label="unit"
-                  @input=${(e: any) => this._updateRowEntity(i, j, "unit", (e.target as HTMLInputElement).value || undefined)}
+                  @input=${(e: any) => this._updateRowEntity(i, j, "unit", (e.target as any).value || undefined)}
                 ></ha-textfield>
               </div>
               <div class="entity-switches">
@@ -456,13 +456,13 @@ export class RoomCardEditor extends LitElement implements LovelaceCardEditor {
             .value=${c.entity || ""}
             allow-custom-entity
             @value-changed=${(e: any) => this._updateCond(i, "entity", e.detail.value || undefined)}
-            @closed=${(e: Event) => e.stopPropagation()}
+            @closed=${(e: any) => e.stopPropagation()}
           ></ha-entity-picker>
           <ha-select
             .value=${c.operator ?? "=="}
             @value-changed=${(e: any) => this._updateCond(i, "operator", e.detail?.value)}
             naturalMenuWidth fixedMenuPosition
-            @closed=${(e: Event) => e.stopPropagation()}
+            @closed=${(e: any) => e.stopPropagation()}
           >
             <mwc-list-item value="==">==</mwc-list-item>
             <mwc-list-item value="!=">!=</mwc-list-item>
@@ -475,12 +475,12 @@ export class RoomCardEditor extends LitElement implements LovelaceCardEditor {
           <ha-textfield
             .value=${c.attribute ?? ""}
             label="attribute (optional)"
-            @input=${(e: any) => this._updateCond(i, "attribute", (e.target as HTMLInputElement).value || undefined)}
+            @input=${(e: any) => this._updateCond(i, "attribute", (e.target as any).value || undefined)}
           ></ha-textfield>
           <ha-textfield
             .value=${c.value ?? ""}
             label="value"
-            @input=${(e: any) => this._updateCond(i, "value", (e.target as HTMLInputElement).value)}
+            @input=${(e: any) => this._updateCond(i, "value", (e.target as any).value)}
           ></ha-textfield>
           <mwc-button dense danger @click=${() => this._removeCond(i)}>Remove</mwc-button>
         </div>
@@ -493,17 +493,17 @@ export class RoomCardEditor extends LitElement implements LovelaceCardEditor {
         <ha-textfield
           .value=${this._styles?.title_color ?? ""}
           label="title_color (CSS)"
-          @input=${(e: any) => this._updateStyle("title_color", (e.target as HTMLInputElement).value || undefined)}
+          @input=${(e: any) => this._updateStyle("title_color", (e.target as any).value || undefined)}
         ></ha-textfield>
         <ha-textfield
           .value=${this._styles?.icon_color ?? ""}
           label="icon_color (CSS)"
-          @input=${(e: any) => this._updateStyle("icon_color", (e.target as HTMLInputElement).value || undefined)}
+          @input=${(e: any) => this._updateStyle("icon_color", (e.target as any).value || undefined)}
         ></ha-textfield>
         <ha-textfield
           .value=${this._styles?.font_size ?? ""}
           label="font_size (CSS)"
-          @input=${(e: any) => this._updateStyle("font_size", (e.target as HTMLInputElement).value || undefined)}
+          @input=${(e: any) => this._updateStyle("font_size", (e.target as any).value || undefined)}
         ></ha-textfield>
       </div>
       <div class="help">Weitere Styles unten im YAML-Block ergänzen/feintunen.</div>
