@@ -1,105 +1,96 @@
 import { LitElement, html, css } from "lit";
-import { customElement, property, state } from "lit/decorators.js";
-// Keine Typ-Imports -> robust gegen tsconfig ohne "dom" libs
 
+// Simple types
 type AnyObj = Record<string, any>;
 const uid = () => `id_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 
-@customElement("room-card-editor")
 export class RoomCardEditor extends LitElement {
-  @property({ attribute: false }) public hass: any;
+  static properties = {
+    hass: { attribute: false }, // Lovelace setzt das rein
+  };
 
-  @state() private _config: AnyObj = {};
-  @state() private _entities: AnyObj[] = [];
-  @state() private _rows: { _id: string; label?: string; entities: AnyObj[] }[] = [];
-  @state() private _hideIf: AnyObj[] = [];
-  @state() private _styles: AnyObj = {};
+  hass: any;
+  private _config: AnyObj = {};
+  private _entities: AnyObj[] = [];
+  private _rows: { _id: string; label?: string; entities: AnyObj[] }[] = [];
+  private _hideIf: AnyObj[] = [];
+  private _styles: AnyObj = {};
 
+  // Lovelace Editor-API
   public setConfig(config: AnyObj): void {
     const { hass, entityIds, ...rest } = config || {};
-    this._config  = rest || {};
-    // keyed entities
-    const ents = Array.isArray(this._config.entities) ? [...this._config.entities] : [];
+    this._config = rest || {};
+
+    const ents = Array.isArray(this._config.entities) ? this._config.entities : [];
     this._entities = ents.map((e: AnyObj) => ({ _id: uid(), ...(e || {}) }));
-    // rows
-    const rows = Array.isArray(this._config.rows) ? [...this._config.rows] : [];
+
+    const rows = Array.isArray(this._config.rows) ? this._config.rows : [];
     this._rows = rows.map((r: AnyObj) => ({
       _id: uid(),
-      label: r && (r.label ?? r.name) || "",
-      entities: Array.isArray(r?.entities) ? r.entities.map((e: AnyObj) => ({ _id: uid(), ...(e || {}) })) : []
+      label: (r && (r.label ?? r.name)) || "",
+      entities: Array.isArray(r?.entities) ? r.entities.map((e: AnyObj) => ({ _id: uid(), ...(e || {}) })) : [],
     }));
-    // conditions
+
     this._hideIf = Array.isArray(this._config.hide_if) ? [...this._config.hide_if] : [];
-    // styles
     this._styles = this._config.styles && typeof this._config.styles === "object" ? { ...this._config.styles } : {};
+    this.requestUpdate();
   }
 
-  static get styles() {
-    return css`
-      .row { margin: 8px 0; display: grid; grid-template-columns: 160px 1fr; gap: 12px; align-items: center; }
-      .toggle { display: flex; align-items: center; gap: 8px; margin: 12px 0; }
-      .help { color: var(--secondary-text-color); font-size: 12px; margin: 8px 0 0; }
-      .yaml { margin-top: 16px; }
-      ha-yaml-editor { --code-mirror-height: 240px; }
-      ha-textfield { width: 100%; }
-      .section { margin-top: 18px; font-weight: 600; }
-      .muted { color: var(--secondary-text-color); font-size: 12px; }
-      .card { border: 1px solid var(--divider-color); border-radius: 10px; padding: 12px; margin: 10px 0; }
-      .entity-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-      .entity-actions { display: flex; gap: 8px; justify-content: space-between; align-items: center; margin-top: 8px; }
-      .entity-switches { display: grid; grid-template-columns: repeat(4, minmax(0, max-content)); gap: 12px; align-items: center; margin-top: 6px; }
-      .mini { display:flex; align-items:center; gap:10px; }
-      .chips { display:flex; gap: 6px; flex-wrap: wrap; }
-      ha-state-icon { --mdc-icon-size: 22px; }
-      .grid-3 { display:grid; grid-template-columns: 1fr 1fr 1fr; gap:12px; }
-      .cond-row { display:grid; grid-template-columns: 1fr 110px 1fr 1fr auto; gap:8px; align-items:center; }
-      .row-title { font-weight: 600; margin-bottom: 8px; }
-      .subtle { opacity: .8 }
-      .mb8 { margin-bottom: 8px; }
-    `;
-  }
+  static styles = css`
+    .row { margin: 8px 0; display: grid; grid-template-columns: 160px 1fr; gap: 12px; align-items: center; }
+    .toggle { display: flex; align-items: center; gap: 8px; margin: 12px 0; }
+    .help { color: var(--secondary-text-color); font-size: 12px; margin: 8px 0 0; }
+    .yaml { margin-top: 16px; }
+    ha-yaml-editor { --code-mirror-height: 240px; }
+    ha-textfield { width: 100%; }
+    .section { margin-top: 18px; font-weight: 600; }
+    .muted { color: var(--secondary-text-color); font-size: 12px; }
+    .card { border: 1px solid var(--divider-color); border-radius: 10px; padding: 12px; margin: 10px 0; }
+    .entity-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .entity-actions { display: flex; gap: 8px; justify-content: space-between; align-items: center; margin-top: 8px; }
+    .entity-switches { display: grid; grid-template-columns: repeat(4, minmax(0, max-content)); gap: 12px; align-items: center; margin-top: 6px; }
+    .mini { display:flex; align-items:center; gap:10px; }
+    .chips { display:flex; gap: 6px; flex-wrap: wrap; }
+    ha-state-icon { --mdc-icon-size: 22px; }
+    .grid-3 { display:grid; grid-template-columns: 1fr 1fr 1fr; gap:12px; }
+    .cond-row { display:grid; grid-template-columns: 1fr 110px 1fr 1fr auto; gap:8px; align-items:center; }
+    .row-title { font-weight: 600; margin-bottom: 8px; }
+    .subtle { opacity: .8 }
+    .mb8 { margin-bottom: 8px; }
+  `;
 
-  // ---------- emit ----------
+  // ------- helpers -------
   private _emit() {
     const cfg: AnyObj = { ...this._config };
     cfg.entities = this._entities.map(({ _id, ...rest }) => rest);
     cfg.rows = this._rows.map(({ _id, label, entities }) => ({
       label,
-      entities: entities.map(({ _id, ...r }) => r)
+      entities: entities.map(({ _id, ...r }) => r),
     }));
     cfg.hide_if = this._hideIf.length ? this._hideIf : undefined;
     cfg.styles = Object.keys(this._styles || {}).length ? this._styles : undefined;
     this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: cfg } }));
   }
-
-  // ---------- helpers ----------
   private _updateCfg(key: string, value: any) {
     const cfg = { ...this._config };
     if (value === "" || value === undefined) delete cfg[key];
     else cfg[key] = value;
     this._config = cfg;
-    this._emit();
+    this._emit(); this.requestUpdate();
   }
 
   // entities
-  private _addEntity() {
-    this._entities = [...this._entities, { _id: uid(), entity: "" }];
-    this.updateComplete.then(() => this._emit());
-  }
-  private _removeEntity(i: number) {
-    const list = [...this._entities]; list.splice(i, 1);
-    this._entities = list; this._emit();
-  }
-  private _moveEntity(i: number, dir: -1 | 1) {
+  private _addEntity() { this._entities = [...this._entities, { _id: uid(), entity: "" }]; this._emit(); this.requestUpdate(); }
+  private _removeEntity(i: number) { const l = [...this._entities]; l.splice(i,1); this._entities = l; this._emit(); this.requestUpdate(); }
+  private _moveEntity(i: number, dir: -1|1) {
     const j = i + dir; if (j < 0 || j >= this._entities.length) return;
-    const list = [...this._entities]; const [it] = list.splice(i, 1); list.splice(j, 0, it);
-    this._entities = list; this._emit();
+    const l = [...this._entities]; const [it] = l.splice(i,1); l.splice(j,0,it);
+    this._entities = l; this._emit(); this.requestUpdate();
   }
   private _updateEntity(i: number, key: string, value: any) {
-    const list = [...this._entities];
-    const e = { ...(list[i] || {}) };
+    const l = [...this._entities]; const e = { ...(l[i] || {}) };
     if (value === "" || value === undefined) delete e[key]; else e[key] = value;
-    list[i] = e; this._entities = list; this._emit();
+    l[i] = e; this._entities = l; this._emit(); this.requestUpdate();
   }
   private _entityIconPreview(ent: AnyObj) {
     if (!ent?.show_icon) return html``;
@@ -110,63 +101,56 @@ export class RoomCardEditor extends LitElement {
   }
 
   // rows
-  private _addRow() { this._rows = [...this._rows, { _id: uid(), label: "", entities: [] }]; this._emit(); }
-  private _removeRow(i: number) { const rows = [...this._rows]; rows.splice(i, 1); this._rows = rows; this._emit(); }
-  private _moveRow(i: number, dir: -1 | 1) {
+  private _addRow() { this._rows = [...this._rows, { _id: uid(), label: "", entities: [] }]; this._emit(); this.requestUpdate(); }
+  private _removeRow(i: number) { const r = [...this._rows]; r.splice(i,1); this._rows = r; this._emit(); this.requestUpdate(); }
+  private _moveRow(i: number, dir: -1|1) {
     const j = i + dir; if (j < 0 || j >= this._rows.length) return;
-    const arr = [...this._rows]; const [r] = arr.splice(i, 1); arr.splice(j, 0, r);
-    this._rows = arr; this._emit();
+    const arr = [...this._rows]; const [row] = arr.splice(i,1); arr.splice(j,0,row);
+    this._rows = arr; this._emit(); this.requestUpdate();
   }
-  private _updateRowLabel(i: number, v: any) {
-    const arr = [...this._rows]; arr[i] = { ...arr[i], label: v || undefined };
-    this._rows = arr; this._emit();
-  }
+  private _updateRowLabel(i: number, v: any) { const arr = [...this._rows]; arr[i] = { ...arr[i], label: v || undefined }; this._rows = arr; this._emit(); this.requestUpdate(); }
   private _addRowEntity(i: number) {
-    const arr = [...this._rows];
-    const row = { ...(arr[i] || {}) };
+    const arr = [...this._rows]; const row = { ...(arr[i] || {}) };
     row.entities = [...(row.entities || []), { _id: uid(), entity: "" }];
-    arr[i] = row; this._rows = arr; this._emit();
+    arr[i] = row; this._rows = arr; this._emit(); this.requestUpdate();
   }
   private _updateRowEntity(i: number, j: number, key: string, value: any) {
     const arr = [...this._rows]; const row = { ...(arr[i] || {}) };
-    const ents = [...(row.entities || [])];
-    const e = { ...(ents[j] || {}) };
+    const ents = [...(row.entities || [])]; const e = { ...(ents[j] || {}) };
     if (value === "" || value === undefined) delete e[key]; else e[key] = value;
-    ents[j] = e; row.entities = ents; arr[i] = row; this._rows = arr; this._emit();
+    ents[j] = e; row.entities = ents; arr[i] = row; this._rows = arr; this._emit(); this.requestUpdate();
   }
   private _removeRowEntity(i: number, j: number) {
     const arr = [...this._rows]; const row = { ...(arr[i] || {}) };
-    const ents = [...(row.entities || [])]; ents.splice(j, 1);
-    row.entities = ents; arr[i] = row; this._rows = arr; this._emit();
+    const ents = [...(row.entities || [])]; ents.splice(j,1);
+    row.entities = ents; arr[i] = row; this._rows = arr; this._emit(); this.requestUpdate();
   }
-  private _moveRowEntity(i: number, j: number, dir: -1 | 1) {
+  private _moveRowEntity(i: number, j: number, dir: -1|1) {
     const arr = [...this._rows]; const row = { ...(arr[i] || {}) };
-    const ents = [...(row.entities || [])];
-    const k = j + dir; if (k < 0 || k >= ents.length) return;
-    const [item] = ents.splice(j, 1); ents.splice(k, 0, item);
-    row.entities = ents; arr[i] = row; this._rows = arr; this._emit();
+    const ents = [...(row.entities || [])]; const k = j + dir; if (k < 0 || k >= ents.length) return;
+    const [it] = ents.splice(j,1); ents.splice(k,0,it);
+    row.entities = ents; arr[i] = row; this._rows = arr; this._emit(); this.requestUpdate();
   }
 
   // conditions
-  private _addCondition() { this._hideIf = [...this._hideIf, { entity: "", operator: "==", value: "off" }]; this._emit(); }
+  private _addCondition() { this._hideIf = [...this._hideIf, { entity: "", operator: "==", value: "off" }]; this._emit(); this.requestUpdate(); }
   private _updateCond(i: number, key: string, value: any) {
     const list = [...this._hideIf]; const c = { ...(list[i] || {}) };
     if (value === "" || value === undefined) delete (c as any)[key]; else (c as any)[key] = value;
-    list[i] = c; this._hideIf = list; this._emit();
+    list[i] = c; this._hideIf = list; this._emit(); this.requestUpdate();
   }
-  private _removeCond(i: number) { const l = [...this._hideIf]; l.splice(i, 1); this._hideIf = l; this._emit(); }
+  private _removeCond(i: number) { const l = [...this._hideIf]; l.splice(i,1); this._hideIf = l; this._emit(); this.requestUpdate(); }
 
   // styles
   private _updateStyle(key: string, value: any) {
     const s = { ...(this._styles || {}) };
     if (value === "" || value === undefined) delete s[key]; else s[key] = value;
-    this._styles = s; this._emit();
+    this._styles = s; this._emit(); this.requestUpdate();
   }
 
   protected render() {
     if (!this.hass) return html``;
-
-    const ActionEditorAvailable = !!customElements.get("hui-action-editor");
+    const hasActionEditor = !!customElements.get("hui-action-editor");
 
     return html`
       <!-- Basis -->
@@ -193,8 +177,7 @@ export class RoomCardEditor extends LitElement {
         <ha-select
           .value=${this._config.content_alignment ?? "left"}
           @value-changed=${(e: any) => this._updateCfg("content_alignment", e.detail?.value)}
-          naturalMenuWidth
-          fixedMenuPosition
+          naturalMenuWidth fixedMenuPosition
           @closed=${(e: any) => e.stopPropagation()}
         >
           <mwc-list-item value="left">Left</mwc-list-item>
@@ -215,18 +198,11 @@ export class RoomCardEditor extends LitElement {
       </div>
 
       <div class="toggle">
-        <ha-switch
-          .checked=${!!this._config.show_icon}
-          @change=${(e: any) => this._updateCfg("show_icon", e.target.checked)}
-        ></ha-switch>
+        <ha-switch .checked=${!!this._config.show_icon} @change=${(e: any) => this._updateCfg("show_icon", e.target.checked)}></ha-switch>
         <span>Show icon</span>
       </div>
-
       <div class="toggle">
-        <ha-switch
-          .checked=${!!this._config.hide_title}
-          @change=${(e: any) => this._updateCfg("hide_title", e.target.checked)}
-        ></ha-switch>
+        <ha-switch .checked=${!!this._config.hide_title} @change=${(e: any) => this._updateCfg("hide_title", e.target.checked)}></ha-switch>
         <span>Hide title</span>
       </div>
 
@@ -249,73 +225,33 @@ export class RoomCardEditor extends LitElement {
               @value-changed=${(e: any) => this._updateEntity(i, "entity", e.detail?.value || undefined)}
               @closed=${(e: any) => e.stopPropagation()}
             ></ha-entity-picker>
-            <ha-textfield
-              .value=${ent.name ?? ""}
-              label="name"
-              @input=${(e: any) => this._updateEntity(i, "name", (e.target as any).value || undefined)}
-            ></ha-textfield>
-            <ha-textfield
-              .value=${ent.attribute ?? ""}
-              label="attribute"
-              @input=${(e: any) => this._updateEntity(i, "attribute", (e.target as any).value || undefined)}
-            ></ha-textfield>
-            <ha-textfield
-              .value=${ent.unit ?? ""}
-              label="unit"
-              @input=${(e: any) => this._updateEntity(i, "unit", (e.target as any).value || undefined)}
-            ></ha-textfield>
-            <ha-textfield
-              .value=${ent.icon ?? ""}
-              label="icon (z. B. mdi:sun)"
-              @input=${(e: any) => this._updateEntity(i, "icon", (e.target as any).value || undefined)}
-            ></ha-textfield>
-            <ha-textfield
-              .value=${ent.format ?? ""}
-              label="format"
-              @input=${(e: any) => this._updateEntity(i, "format", (e.target as any).value || undefined)}
-            ></ha-textfield>
+            <ha-textfield .value=${ent.name ?? ""} label="name" @input=${(e: any) => this._updateEntity(i, "name", (e.target as any).value || undefined)}></ha-textfield>
+            <ha-textfield .value=${ent.attribute ?? ""} label="attribute" @input=${(e: any) => this._updateEntity(i, "attribute", (e.target as any).value || undefined)}></ha-textfield>
+            <ha-textfield .value=${ent.unit ?? ""} label="unit" @input=${(e: any) => this._updateEntity(i, "unit", (e.target as any).value || undefined)}></ha-textfield>
+            <ha-textfield .value=${ent.icon ?? ""} label="icon (z. B. mdi:sun)" @input=${(e: any) => this._updateEntity(i, "icon", (e.target as any).value || undefined)}></ha-textfield>
+            <ha-textfield .value=${ent.format ?? ""} label="format" @input=${(e: any) => this._updateEntity(i, "format", (e.target as any).value || undefined)}></ha-textfield>
           </div>
 
           <div class="entity-switches">
-            <span class="chips">
-              <ha-switch .checked=${!!ent.show_name} @change=${(e: any) => this._updateEntity(i, "show_name", e.target.checked)}></ha-switch><span>show_name</span>
-            </span>
-            <span class="chips">
-              <ha-switch .checked=${!!ent.show_icon} @change=${(e: any) => this._updateEntity(i, "show_icon", e.target.checked)}></ha-switch><span>show_icon</span>
-            </span>
-            <span class="chips">
-              <ha-switch .checked=${!!ent.state_color} @change=${(e: any) => this._updateEntity(i, "state_color", e.target.checked)}></ha-switch><span>state_color</span>
-            </span>
-            <span class="chips">
-              <ha-switch .checked=${!!ent.toggle} @change=${(e: any) => this._updateEntity(i, "toggle", e.target.checked)}></ha-switch><span>toggle</span>
-            </span>
+            <span class="chips"><ha-switch .checked=${!!ent.show_name} @change=${(e: any) => this._updateEntity(i, "show_name", e.target.checked)}></ha-switch><span>show_name</span></span>
+            <span class="chips"><ha-switch .checked=${!!ent.show_icon} @change=${(e: any) => this._updateEntity(i, "show_icon", e.target.checked)}></ha-switch><span>show_icon</span></span>
+            <span class="chips"><ha-switch .checked=${!!ent.state_color} @change=${(e: any) => this._updateEntity(i, "state_color", e.target.checked)}></ha-switch><span>state_color</span></span>
+            <span class="chips"><ha-switch .checked=${!!ent.toggle} @change=${(e: any) => this._updateEntity(i, "toggle", e.target.checked)}></ha-switch><span>toggle</span></span>
           </div>
 
-          ${ActionEditorAvailable ? html`
+          ${hasActionEditor ? html`
             <div class="section">Actions</div>
             <div class="mb8">
-              <hui-action-editor
-                .hass=${this.hass}
-                .config=${ent.tap_action || {}}
-                .label=${"tap_action"}
-                @value-changed=${(e: any) => this._updateEntity(i, "tap_action", e.detail?.value || undefined)}
-              ></hui-action-editor>
+              <hui-action-editor .hass=${this.hass} .config=${ent.tap_action || {}} .label=${"tap_action"}
+                @value-changed=${(e: any) => this._updateEntity(i, "tap_action", e.detail?.value || undefined)}></hui-action-editor>
             </div>
             <div class="mb8">
-              <hui-action-editor
-                .hass=${this.hass}
-                .config=${ent.hold_action || {}}
-                .label=${"hold_action"}
-                @value-changed=${(e: any) => this._updateEntity(i, "hold_action", e.detail?.value || undefined)}
-              ></hui-action-editor>
+              <hui-action-editor .hass=${this.hass} .config=${ent.hold_action || {}} .label=${"hold_action"}
+                @value-changed=${(e: any) => this._updateEntity(i, "hold_action", e.detail?.value || undefined)}></hui-action-editor>
             </div>
             <div class="mb8">
-              <hui-action-editor
-                .hass=${this.hass}
-                .config=${ent.double_tap_action || {}}
-                .label=${"double_tap_action"}
-                @value-changed=${(e: any) => this._updateEntity(i, "double_tap_action", e.detail?.value || undefined)}
-              ></hui-action-editor>
+              <hui-action-editor .hass=${this.hass} .config=${ent.double_tap_action || {}} .label=${"double_tap_action"}
+                @value-changed=${(e: any) => this._updateEntity(i, "double_tap_action", e.detail?.value || undefined)}></hui-action-editor>
             </div>
           ` : html`<div class="muted">Kein <code>hui-action-editor</code> gefunden – Actions im YAML unten pflegen.</div>`}
 
@@ -338,11 +274,7 @@ export class RoomCardEditor extends LitElement {
           <div class="row-title">Row ${i+1}</div>
           <div class="row">
             <div>Label</div>
-            <ha-textfield
-              .value=${row.label ?? ""}
-              label="label"
-              @input=${(e: any) => this._updateRowLabel(i, (e.target as any).value || "")}
-            ></ha-textfield>
+            <ha-textfield .value=${row.label ?? ""} label="label" @input=${(e: any) => this._updateRowLabel(i, (e.target as any).value || "")}></ha-textfield>
           </div>
 
           ${row.entities.map((cell, j) => html`
@@ -362,21 +294,9 @@ export class RoomCardEditor extends LitElement {
                   @value-changed=${(e: any) => this._updateRowEntity(i, j, "entity", e.detail?.value || undefined)}
                   @closed=${(e: any) => e.stopPropagation()}
                 ></ha-entity-picker>
-                <ha-textfield
-                  .value=${cell.name ?? ""}
-                  label="name"
-                  @input=${(e: any) => this._updateRowEntity(i, j, "name", (e.target as any).value || undefined)}
-                ></ha-textfield>
-                <ha-textfield
-                  .value=${cell.icon ?? ""}
-                  label="icon"
-                  @input=${(e: any) => this._updateRowEntity(i, j, "icon", (e.target as any).value || undefined)}
-                ></ha-textfield>
-                <ha-textfield
-                  .value=${cell.unit ?? ""}
-                  label="unit"
-                  @input=${(e: any) => this._updateRowEntity(i, j, "unit", (e.target as any).value || undefined)}
-                ></ha-textfield>
+                <ha-textfield .value=${cell.name ?? ""} label="name" @input=${(e: any) => this._updateRowEntity(i, j, "name", (e.target as any).value || undefined)}></ha-textfield>
+                <ha-textfield .value=${cell.icon ?? ""} label="icon" @input=${(e: any) => this._updateRowEntity(i, j, "icon", (e.target as any).value || undefined)}></ha-textfield>
+                <ha-textfield .value=${cell.unit ?? ""} label="unit" @input=${(e: any) => this._updateRowEntity(i, j, "unit", (e.target as any).value || undefined)}></ha-textfield>
               </div>
               <div class="entity-actions">
                 <div>
@@ -405,19 +325,11 @@ export class RoomCardEditor extends LitElement {
       <div class="section">Conditional visibility (hide_if)</div>
       ${this._hideIf.map((c, i) => html`
         <div class="cond-row">
-          <ha-entity-picker
-            .hass=${this.hass}
-            .value=${c.entity || ""}
-            allow-custom-entity
+          <ha-entity-picker .hass=${this.hass} .value=${c.entity || ""} allow-custom-entity
             @value-changed=${(e: any) => this._updateCond(i, "entity", e.detail?.value || undefined)}
-            @closed=${(e: any) => e.stopPropagation()}
-          ></ha-entity-picker>
-          <ha-select
-            .value=${c.operator ?? "=="}
-            @value-changed=${(e: any) => this._updateCond(i, "operator", e.detail?.value)}
-            naturalMenuWidth fixedMenuPosition
-            @closed=${(e: any) => e.stopPropagation()}
-          >
+            @closed=${(e: any) => e.stopPropagation()}></ha-entity-picker>
+          <ha-select .value=${c.operator ?? "=="} @value-changed=${(e: any) => this._updateCond(i, "operator", e.detail?.value)}
+            naturalMenuWidth fixedMenuPosition @closed=${(e: any) => e.stopPropagation()}>
             <mwc-list-item value="==">==</mwc-list-item>
             <mwc-list-item value="!=">!=</mwc-list-item>
             <mwc-list-item value="<"><</mwc-list-item>
@@ -426,39 +338,24 @@ export class RoomCardEditor extends LitElement {
             <mwc-list-item value=">=">>=</mwc-list-item>
             <mwc-list-item value="contains">contains</mwc-list-item>
           </ha-select>
-          <ha-textfield
-            .value=${c.attribute ?? ""}
-            label="attribute (optional)"
-            @input=${(e: any) => this._updateCond(i, "attribute", (e.target as any).value || undefined)}
-          ></ha-textfield>
-          <ha-textfield
-            .value=${c.value ?? ""}
-            label="value"
-            @input=${(e: any) => this._updateCond(i, "value", (e.target as any).value)}
-          ></ha-textfield>
+          <ha-textfield .value=${c.attribute ?? ""} label="attribute (optional)"
+            @input=${(e: any) => this._updateCond(i, "attribute", (e.target as any).value || undefined)}></ha-textfield>
+          <ha-textfield .value=${c.value ?? ""} label="value"
+            @input=${(e: any) => this._updateCond(i, "value", (e.target as any).value)}></ha-textfield>
           <mwc-button dense danger @click=${() => this._removeCond(i)}>Remove</mwc-button>
         </div>
       `)}
       <mwc-button dense @click=${this._addCondition}>Add condition</mwc-button>
 
-      <!-- Styles helper -->
+      <!-- Styles -->
       <div class="section">Styles</div>
       <div class="grid-3">
-        <ha-textfield
-          .value=${this._styles?.title_color ?? ""}
-          label="title_color (CSS)"
-          @input=${(e: any) => this._updateStyle("title_color", (e.target as any).value || undefined)}
-        ></ha-textfield>
-        <ha-textfield
-          .value=${this._styles?.icon_color ?? ""}
-          label="icon_color (CSS)"
-          @input=${(e: any) => this._updateStyle("icon_color", (e.target as any).value || undefined)}
-        ></ha-textfield>
-        <ha-textfield
-          .value=${this._styles?.font_size ?? ""}
-          label="font_size (CSS)"
-          @input=${(e: any) => this._updateStyle("font_size", (e.target as any).value || undefined)}
-        ></ha-textfield>
+        <ha-textfield .value=${this._styles?.title_color ?? ""} label="title_color (CSS)"
+          @input=${(e: any) => this._updateStyle("title_color", (e.target as any).value || undefined)}></ha-textfield>
+        <ha-textfield .value=${this._styles?.icon_color ?? ""} label="icon_color (CSS)"
+          @input=${(e: any) => this._updateStyle("icon_color", (e.target as any).value || undefined)}></ha-textfield>
+        <ha-textfield .value=${this._styles?.font_size ?? ""} label="font_size (CSS)"
+          @input=${(e: any) => this._updateStyle("font_size", (e.target as any).value || undefined)}></ha-textfield>
       </div>
       <div class="help">Weitere Styles unten im YAML-Block ergänzen/feintunen.</div>
 
@@ -482,7 +379,7 @@ export class RoomCardEditor extends LitElement {
               this._rows = Array.isArray(rows) ? rows.map((r:any)=>({_id:uid(), label:(r && (r.label ?? r.name)) || "", entities:Array.isArray(r?.entities)? r.entities.map((x:any)=>({_id:uid(), ...x})) : []})) : [];
               this._hideIf = Array.isArray(hide_if) ? [...hide_if] : [];
               this._styles = styles && typeof styles === "object" ? { ...styles } : {};
-              this._emit();
+              this._emit(); this.requestUpdate();
             }
           }}
         ></ha-yaml-editor>
@@ -491,8 +388,7 @@ export class RoomCardEditor extends LitElement {
   }
 }
 
-declare global {
-  interface HTMLElementTagNameMap {
-    "room-card-editor": RoomCardEditor;
-  }
+// Registrierung (keine Decorators nötig)
+if (!customElements.get("room-card-editor")) {
+  customElements.define("room-card-editor", RoomCardEditor);
 }
