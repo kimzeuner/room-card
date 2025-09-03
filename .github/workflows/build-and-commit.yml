@@ -1,0 +1,40 @@
+name: Build and commit artifacts
+
+on:
+  # Manuell auslösbar ("Run workflow" im Actions-Tab)
+  workflow_dispatch:
+  # Oder automatisch bei Änderungen an Code/Build-Konfig
+  push:
+    paths:
+      - 'src/**'
+      - 'package.json'
+      - 'webpack.config.js'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Commit built files (room-card.js + .gz)
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "build: update room-card.js (+gz)"
+          file_pattern: |
+            room-card.js
+            room-card.js.gz
