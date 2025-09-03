@@ -2,11 +2,13 @@ name: Build and commit artifacts
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - 'src/**'
-      - 'package.json'
-      - 'webpack.config.js'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-room-card
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -21,14 +23,18 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
+          cache: npm
 
       - name: Install deps
         run: npm ci
 
-      # WICHTIG: Direkt webpack aufrufen (umgeht "prebuild" & "yarn lint")
-      - name: Build with webpack
-        run: npx webpack -c webpack.config.js
+      # Erst TS-Prüfung mit verständlichen Meldungen
+      - name: Type-check (no emit)
+        run: npx tsc --noEmit || true
+
+      # Danach der eigentliche Build (ohne prebuild/yarn)
+      - name: Build with webpack (verbose)
+        run: npx webpack -c webpack.config.js --stats=errors-warnings --color
 
       - name: Verify outputs
         run: ls -l room-card.js room-card.js.gz
