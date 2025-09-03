@@ -9,6 +9,7 @@ import { hideIfCard } from './hide';
 import { style } from './styles';
 import { HomeAssistantEntity, RoomCardConfig, RoomCardLovelaceCardConfig } from './types/room-card-types';
 import * as packageJson from '../package.json';
+import './editor';
 
 console.info(
     `%c ROOM-CARD %c ${packageJson.version}`,
@@ -28,6 +29,14 @@ console.info(
 
 @customElement('room-card')
 export default class RoomCard extends LitElement {
+    // → Visual Editor verfügbar machen
+    static getConfigElement() {
+        return document.createElement('room-card-editor');
+    }
+    static getStubConfig(hass?: HomeAssistant, entities?: string[]) {
+        const first = Array.isArray(entities) && entities.length ? entities[0] : undefined;
+        return { type: 'custom:room-card', title: 'Room', entity: first, show_icon: true };
+    }
     @property() monitoredStates?: HassEntities = {};
     @property() _helpers: { createCardElement(config: LovelaceCardConfig): LovelaceCard }
 
@@ -94,7 +103,10 @@ export default class RoomCard extends LitElement {
 
         this.config = { ...config, entityIds: getEntityIds(config) };
 
-        await this.waitForDependentComponents(config);
+        const inEditor = document.querySelector('hui-card-editor') !== null;
+        if (!inEditor) {
+          await this.waitForDependentComponents(config);
+        }
 
         /* istanbul ignore next */
         /* eslint-disable @typescript-eslint/no-explicit-any */
