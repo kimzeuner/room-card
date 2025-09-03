@@ -1,47 +1,58 @@
-name: Push to master checks
+name: Push checks (no release)
 
-# Controls when the workflow will run
 on:
-  # Triggers the workflow on push or pull request events but only for the "master" branch
   push:
-    branches: [ "master" ]
+    branches: [ master ]
+    # Triggert nur bei Quell-/Build-relevanten Dateien
+    paths:
+      - 'src/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'webpack.config.js'
+      - 'hacs.json'
+      - '!**/.github/workflows/**'
+  pull_request:
+    branches: [ master ]
+    paths:
+      - 'src/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'webpack.config.js'
+      - 'hacs.json'
+      - '!**/.github/workflows/**'
 
-  # Allows you to run this workflow manually from the Actions tab
-  workflow_dispatch:
+permissions:
+  contents: read
 
-env:
-  LANG: "nl_NL.UTF-8"
-  LANGUAGE: "nl_NL:nl"
-  LC_ALL: "nl_NL.UTF-8"
+concurrency:
+  group: push-checks-${{ github.ref_name }}
+  cancel-in-progress: true
 
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  hacs:
-    runs-on: "ubuntu-latest"
-    name: Test and validate
+  validate:
+    runs-on: ubuntu-latest
     steps:
-      - name: Check out the repository
-        uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
-          fetch-depth: 0
+          node-version: 20
+          cache: npm
 
-      - run: npm install
-       
-      - name: Build
-        run: npm run build
+      - name: Install deps
+        run: npm ci
 
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
+      # Nur Info, bricht nicht ab (hilfreich in Logs)
+      - name: Type-check (no emit)
+        run: npx tsc --noEmit || true
+
+      # Baut einmal „trocken“, damit HACS nicht über fehlende Artefakte stolpert
+      - name: Build (no artifacts committed here)
+        run: npx webpack -c webpack.config.js --stats=errors-warnings --color
 
       - name: HACS validation
         uses: hacs/action@main
         with:
-          category: "plugin"
-          ignore: brands
-
-      - name: Automatic GitHub Release
-        uses: marcokreeft87/github-action-npm-release@1.0.0
-
-      - name: Print release output
-        if: ${{ steps.release.outputs.released == 'true' }}
-        run: echo Release ID ${{ steps.release.outputs.release_id }}
+          category: plugin
