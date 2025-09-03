@@ -105,7 +105,11 @@ export default class RoomCard extends LitElement {
 
         const inEditor = document.querySelector('hui-card-editor') !== null;
         if (!inEditor) {
-          await this.waitForDependentComponents(config);
+          // Editor-Safe-Preview: im Editor nicht auf fremde Custom-Cards warten
+            const inEditor = document.querySelector('hui-card-editor') !== null;
+            if (!inEditor) {
+              await this.waitForDependentComponents(config);
+            }
         }
 
         /* istanbul ignore next */
