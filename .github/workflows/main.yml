@@ -1,0 +1,52 @@
+name: Repair lockfile
+on: { workflow_dispatch: {} }
+permissions: { contents: write }
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # Sicherheitshalber: eventuelle Altlasten aus package.json entfernen
+      - name: Ensure minimal deps
+        run: |
+          npm pkg delete dependencies.babel-jest || true
+          npm pkg delete dependencies.jest-environment-jsdom || true
+          npm pkg delete dependencies.ttypescript || true
+          npm pkg delete dependencies.yarn || true
+          npm pkg delete devDependencies.jest || true
+          npm pkg delete devDependencies.babel-jest || true
+          npm pkg delete devDependencies.jest-environment-jsdom || true
+          npm pkg delete devDependencies.ts-jest || true
+          npm pkg delete devDependencies.@types/jest || true
+          npm pkg delete devDependencies.ts-auto-mock || true
+          npm pkg delete devDependencies.jest-ts-auto-mock || true
+          npm pkg delete devDependencies.@babel/core || true
+          npm pkg delete devDependencies.@babel/preset-env || true
+          npm pkg delete devDependencies.babel-loader || true
+          npm pkg delete devDependencies.eslint || true
+          npm pkg delete devDependencies.eslint-config-prettier || true
+          npm pkg delete devDependencies.eslint-plugin-prettier || true
+          npm pkg delete devDependencies.prettier || true
+
+      - name: Remove old lockfile
+        run: rm -f package-lock.json
+
+      # Lockfile passend zur aktuellen package.json generieren
+      - name: Generate fresh lockfile
+        run: npm install --package-lock-only
+
+      - name: Commit package.json + lockfile
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: regenerate package-lock.json (clean, TS5)"
+          file_pattern: |
+            package.json
+            package-lock.json
