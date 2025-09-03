@@ -13,41 +13,29 @@ module.exports = {
         minimize: true
     },
 
-    module: {
-      rules: [
-        // TypeScript: TS -> JS -> minify HTML literals -> (optional) Babel
+module: {
+  rules: [
+    // TypeScript-Dateien: TS -> minify-html-literals
+    {
+      test: /\.tsx?$/,
+      exclude: /node_modules/,
+      use: [
+        { loader: 'minify-html-literals-loader' },
         {
-          test: /\.tsx?$/,
-          exclude: /node_modules/,
-          use: [
-            // läuft NACH ts-loader (rechts->links)
-            {
-              loader: 'babel-loader',
-              options: { presets: ['@babel/preset-env'] },
-            },
-            { loader: 'minify-html-literals-loader' },
-            {
-              loader: 'ts-loader',
-              options: { transpileOnly: true },
-            },
-          ],
-        },
-    
-        // Reine JS-Dateien
-        {
-          test: /\.m?js$/,
-          exclude: /node_modules/,
-          use: [
-            {
-              loader: 'babel-loader',
-              options: { presets: ['@babel/preset-env'] },
-            },
-            { loader: 'minify-html-literals-loader' },
-          ],
+          loader: 'ts-loader',
+          options: { transpileOnly: true }, // Typprüfung läuft separat (optional)
         },
       ],
     },
 
+    // (Optional) Reine JS-Dateien – nur wenn du tatsächlich .js im src hast
+    // {
+    //   test: /\.m?js$/,
+    //   exclude: /node_modules/,
+    //   use: [{ loader: 'minify-html-literals-loader' }],
+    // },
+  ],
+},
     
     plugins: [
         new webpack.DefinePlugin({
