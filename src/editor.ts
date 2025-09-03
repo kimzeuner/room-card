@@ -46,10 +46,11 @@ export class RoomCardEditor extends LitElement implements LovelaceCardEditor {
     return html`
       <div class="row">
         <div>Title</div>
-        <hui-text-input
-          .value=${this._config.title || ""}
-          @value-changed=${(e: any) => this._update("title", e.detail.value || undefined)}
-        ></hui-text-input>
+        <ha-textfield
+          .value=${this._config.title ?? ""}
+          label="Title"
+          @input=${(e: any) => this._update("title", (e.target as HTMLInputElement).value || undefined)}
+        ></ha-textfield>
       </div>
 
       <div class="row">
@@ -64,10 +65,11 @@ export class RoomCardEditor extends LitElement implements LovelaceCardEditor {
       <div class="row">
         <div>Content alignment</div>
         <ha-select
-          .value=${this._config.content_alignment || "left"}
-          @selected=${(e: any) => this._update("content_alignment", e.target.value)}
+          .value=${this._config.content_alignment ?? "left"}
+          @value-changed=${(e: any) => this._update("content_alignment", e.detail?.value)}
           naturalMenuWidth
           fixedMenuPosition
+          @closed=${(e: Event) => e.stopPropagation()}
         >
           <mwc-list-item value="left">Left</mwc-list-item>
           <mwc-list-item value="center">Center</mwc-list-item>
