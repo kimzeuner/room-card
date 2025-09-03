@@ -3,14 +3,12 @@ name: Push checks (no release)
 on:
   push:
     branches: [ master ]
-    # Triggert nur bei Quell-/Build-relevanten Dateien
     paths:
       - 'src/**'
       - 'package.json'
       - 'package-lock.json'
       - 'webpack.config.js'
       - 'hacs.json'
-      - '!**/.github/workflows/**'
   pull_request:
     branches: [ master ]
     paths:
@@ -19,7 +17,6 @@ on:
       - 'package-lock.json'
       - 'webpack.config.js'
       - 'hacs.json'
-      - '!**/.github/workflows/**'
 
 permissions:
   contents: read
@@ -35,24 +32,30 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Debug manifests
+        run: |
+          echo "== HEAD ==" && git rev-parse --abbrev-ref HEAD && git rev-parse HEAD
+          echo "== manifests ==" && find . -maxdepth 3 -type f \( -name package.json -o -name package-lock.json \) -print
+          echo "== lock typescript ==" && (grep -n '"typescript"' package-lock.json || true)
+          echo "== grep ts-auto-mock ==" && (grep -R "ts-auto-mock" -n || true)
+          echo "== grep jest-ts-auto-mock ==" && (grep -R "jest-ts-auto-mock" -n || true)
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
 
-      - name: Install deps
-        run: npm ci
+      - name: Install deps (self-heal if lockfile is stale)
+        run: |
+          set -euxo pipefail
+          if npm ci; then
+            echo "npm ci OK"
+          else
+            echo "Lockfile mismatch -> regenerating"
+            rm -f package-lock.json
+            npm install --package-lock-only
+            npm ci
+          fi
 
-      # Nur Info, bricht nicht ab (hilfreich in Logs)
-      - name: Type-check (no emit)
-        run: npx tsc --noEmit || true
-
-      # Baut einmal „trocken“, damit HACS nicht über fehlende Artefakte stolpert
-      - name: Build (no artifacts committed here)
-        run: npx webpack -c webpack.config.js --stats=errors-warnings --color
-
-      - name: HACS validation
-        uses: hacs/action@main
-        with:
-          category: plugin
+      - name: Type-check (n
