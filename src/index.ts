@@ -11,8 +11,8 @@ import { hideIfCard } from "./hide";
 import { style } from "./styles";
 import type { HomeAssistantEntity, RoomCardConfig, RoomCardLovelaceCardConfig } from "./types/room-card-types";
 
-// Keine Editor-Importe oben erzwingen; Proxy lädt bei Bedarf dynamisch.
-// import "./editor";
+// ⬇️ WICHTIG: Editor statisch importieren, damit er im Hauptbundle landet
+import "./editor";
 
 console.info("ROOM-CARD: script executed");
 
@@ -33,68 +33,12 @@ if (!window.customCards.some((c) => c.type === "room-card")) {
   });
 }
 
-/** Proxy-Editor: lädt ./editor dynamisch und ersetzt sich selbst durch <room-card-editor>. */
-class RoomCardEditorProxy extends HTMLElement {
-  private _config: any;
-  private _hass: any;
-  private _real?: any;
-  private _loaded = false;
-
-  constructor() {
-    super();
-    const sr = this.attachShadow({ mode: "open" });
-    sr.innerHTML = `<div style="padding:8px;opacity:.7">Loading editor…</div>`;
-  }
-
-  setConfig(cfg: any) {
-    this._config = cfg;
-    if (this._real && typeof this._real.setConfig === "function") this._real.setConfig(cfg);
-  }
-
-  set hass(h: any) {
-    this._hass = h;
-    if (this._real) this._real.hass = h;
-  }
-
-  connectedCallback() {
-    // nur einmal laden
-    if (this._loaded) return;
-    this._loaded = true;
-    this._load();
-  }
-
-  private async _load() {
-    try {
-      if (!customElements.get("room-card-editor")) {
-        // dynamisch laden und auf Definition warten
-        await import("./editor");
-        await customElements.whenDefined("room-card-editor");
-      }
-      const real = document.createElement("room-card-editor") as any;
-      this._real = real;
-      if (this._config) real.setConfig(this._config);
-      if (this._hass) real.hass = this._hass;
-      // Proxy durch echten Editor ersetzen
-      this.replaceWith(real);
-    } catch (e) {
-      console.error("ROOM-CARD: failed to load editor", e);
-      if (this.shadowRoot) {
-        this.shadowRoot.innerHTML =
-          `<div style="padding:8px;color:var(--error-color, #d32f2f)">Editor failed to load.</div>`;
-      }
-    }
-  }
-}
-if (!customElements.get("room-card-editor-proxy")) {
-  customElements.define("room-card-editor-proxy", RoomCardEditorProxy);
-}
-
 export class RoomCard extends LitElement {
   // ----- Lovelace Hooks (Editor-Unterstützung) -----
   static getConfigElement() {
     console.info("ROOM-CARD: getConfigElement()");
-    // Proxy zurückgeben (lädt echten Editor nach)
-    return document.createElement("room-card-editor-proxy");
+    // Direkt den echten Editor liefern (ist bereits registriert, weil statisch importiert)
+    return document.createElement("room-card-editor");
   }
   static getStubConfig(_hass?: HomeAssistant, entities?: string[]) {
     const first = Array.isArray(entities) && entities.length ? entities[0] : undefined;
