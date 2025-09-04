@@ -13,7 +13,10 @@ const has = {
   mwcSwitch: () => !!customElements.get("mwc-switch"),
   mwcFormfield: () => !!customElements.get("mwc-formfield"),
   mwcButton: () => !!customElements.get("mwc-button"),
+  entityPicker: () => !!customElements.get("ha-entity-picker"),
 };
+
+let _datalistCounter = 0;
 
 @customElement("room-card-editor")
 export class RoomCardEditor extends LitElement {
@@ -25,9 +28,9 @@ export class RoomCardEditor extends LitElement {
     console.info("ROOM-CARD-EDITOR: constructed");
   }
 
-  // Stellt sicher, dass ha-entity-picker nachlädt und dann neu rendert
   connectedCallback(): void {
     super.connectedCallback();
+    // Wenn HA die Komponenten lazy lädt, danach neu rendern
     ["ha-entity-picker", "ha-icon-picker"].forEach((tag) =>
       customElements.whenDefined(tag).then(() => this.requestUpdate()),
     );
@@ -147,7 +150,7 @@ export class RoomCardEditor extends LitElement {
 
   // ---------- UI-Bausteine ----------
   private _TF(label: string, value: string, onInput: (v: string) => void) {
-    // nur noch für Name/Icon-Fallback
+    // Nur für Name/Icon-Fallbacks
     return has.textfield()
       ? html`<ha-textfield
           .value=${value ?? ""}
@@ -160,16 +163,37 @@ export class RoomCardEditor extends LitElement {
         </label>`;
   }
 
-  // IMMER als ha-entity-picker rendern; ohne hass disabled
   private _EntityPicker(label: string, value: string, onChange: (v: string) => void) {
-    return html`<ha-entity-picker
-      .hass=${this.hass}
-      .value=${value ?? ""}
-      label=${label}
-      allow-custom-entity
-      ?disabled=${!this.hass}
-      @value-changed=${(e: any) => onChange(e.detail.value)}
-    ></ha-entity-picker>`;
+    if (has.entityPicker()) {
+      // Echter HA-Entity-Picker
+      return html`<ha-entity-picker
+        .hass=${this.hass}
+        .value=${value ?? ""}
+        label=${label}
+        allow-custom-entity
+        ?disabled=${!this.hass}
+        @value-changed=${(e: any) => onChange(e.detail.value)}
+      ></ha-entity-picker>`;
+    }
+
+    // Fallback: Input + datalist mit allen bekannten Entities
+    const listId = `rc-entities-${++_datalistCounter}`;
+    const entities = Object.keys(this.hass?.states ?? {}).sort();
+    return html`
+      <label class="lbl">
+        ${label}
+        <input
+          class="plain"
+          list=${listId}
+          .value=${value ?? ""}
+          @input=${(e: any) => onChange(e.currentTarget.value)}
+          placeholder="sensor.xyz, switch.xyz, …"
+        />
+      </label>
+      <datalist id=${listId}>
+        ${entities.map((eid) => html`<option value=${eid}></option>`)}
+      </datalist>
+    `;
   }
 
   private _IconPicker(value: string, onChange: (v: string) => void) {
@@ -181,6 +205,7 @@ export class RoomCardEditor extends LitElement {
         ></ha-icon-picker>`
       : this._TF("Icon (mdi:…)", value, onChange);
   }
+
   private _Switch(label: string, checked: boolean, onChange: (v: boolean) => void) {
     if (has.haSwitch() && has.haFormfield()) {
       return html`<ha-formfield label=${label}
@@ -197,6 +222,7 @@ export class RoomCardEditor extends LitElement {
       ${label}</label
     >`;
   }
+
   private _Btn(label: string, onClick: () => void, kind: "primary" | "danger" | "ghost" = "primary") {
     return has.mwcButton()
       ? html`<mwc-button dense class=${kind} @click=${onClick}>${label}</mwc-button>`
