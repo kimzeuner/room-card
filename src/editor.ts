@@ -3,23 +3,29 @@ import { customElement, property, state } from "lit/decorators.js";
 import type { HomeAssistant } from "custom-card-helpers";
 import type { RoomCardConfig } from "./types/room-card-types";
 
-const hasIconPicker = !!customElements.get("ha-icon-picker");
+console.info("ROOM-CARD-EDITOR: module loaded");
+
+// Zur Laufzeit prüfen (HA-Versionen unterscheiden sich)
+const hasIconPicker = () => !!customElements.get("ha-icon-picker");
 
 @customElement("room-card-editor")
 export class RoomCardEditor extends LitElement {
   @property({ attribute: false }) public hass!: HomeAssistant;
   @state() private _config?: RoomCardConfig;
 
-  // ---- Lovelace Editor API ----
+  constructor() {
+    super();
+    console.info("ROOM-CARD-EDITOR: constructed");
+  }
+
   public setConfig(config: RoomCardConfig): void {
+    console.info("ROOM-CARD-EDITOR: setConfig()", config);
     try {
       this._config = {
         ...config,
         entities: Array.isArray(config.entities) ? [...config.entities] : [],
       } as RoomCardConfig;
     } catch (e) {
-      // Editor darf nie crashen -> sonst YAML-Fallback
-      // eslint-disable-next-line no-console
       console.warn("room-card-editor: setConfig failed", e);
       this._config = { ...(config || {}), entities: [] } as RoomCardConfig;
     }
@@ -29,7 +35,6 @@ export class RoomCardEditor extends LitElement {
     return changedProps.size > 0;
   }
 
-  // ---- Helpers ----
   private _emitChanged() {
     this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: this._config } }));
   }
@@ -72,7 +77,6 @@ export class RoomCardEditor extends LitElement {
     this._emitChanged();
   };
 
-  // ---- Render ----
   protected render(): TemplateResult {
     if (!this.hass || !this._config) return html``;
 
@@ -115,7 +119,7 @@ export class RoomCardEditor extends LitElement {
                       @value-changed=${(ev: any) => this._updateEntity(i, "entity", ev.detail.value)}
                     ></ha-entity-picker>
 
-                    ${hasIconPicker
+                    ${hasIconPicker()
                       ? html`
                           <ha-icon-picker
                             .value=${ent.icon ?? ""}
