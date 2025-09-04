@@ -5,10 +5,8 @@ import type { RoomCardConfig } from "./types/room-card-types";
 
 console.info("ROOM-CARD-EDITOR: module loaded");
 
-// Verfügbarkeits-Checks (verschiedene HA-Versionen)
 const has = {
   textfield: () => !!customElements.get("ha-textfield"),
-  entityPicker: () => !!customElements.get("ha-entity-picker"),
   iconPicker: () => !!customElements.get("ha-icon-picker"),
   haSwitch: () => !!customElements.get("ha-switch"),
   haFormfield: () => !!customElements.get("ha-formfield"),
@@ -27,21 +25,27 @@ export class RoomCardEditor extends LitElement {
     console.info("ROOM-CARD-EDITOR: constructed");
   }
 
+  // Stellt sicher, dass ha-entity-picker nachlädt und dann neu rendert
+  connectedCallback(): void {
+    super.connectedCallback();
+    ["ha-entity-picker", "ha-icon-picker"].forEach((tag) =>
+      customElements.whenDefined(tag).then(() => this.requestUpdate()),
+    );
+  }
+
   public setConfig(config: RoomCardConfig): void {
     console.info("ROOM-CARD-EDITOR: setConfig()", config);
 
-    const safeRows =
-      Array.isArray((config as any).rows)
-        ? (config as any).rows.map((r: any) => ({
-            ...r,
-            entities: Array.isArray(r?.entities) ? [...r.entities] : [],
-          }))
-        : [];
+    const safeRows = Array.isArray((config as any).rows)
+      ? (config as any).rows.map((r: any) => ({
+          ...r,
+          entities: Array.isArray(r?.entities) ? [...r.entities] : [],
+        }))
+      : [];
 
-    const safeInfo =
-      Array.isArray((config as any).info_entities)
-        ? (config as any).info_entities.map((e: any) => ({ ...e }))
-        : [];
+    const safeInfo = Array.isArray((config as any).info_entities)
+      ? (config as any).info_entities.map((e: any) => ({ ...e }))
+      : [];
 
     this._config = {
       ...(config as any),
@@ -71,23 +75,23 @@ export class RoomCardEditor extends LitElement {
   // ----- rows -----
   private _addRow = () => {
     this._ensureRows();
-    const rows = [ ...(this._config as any).rows ];
+    const rows = [...(this._config as any).rows];
     rows.push({ entities: [] });
     (this._config as any).rows = rows;
     this._emitChanged();
   };
   private _removeRow = (rowIndex: number) => {
     this._ensureRows();
-    const rows = [ ...(this._config as any).rows ];
+    const rows = [...(this._config as any).rows];
     rows.splice(rowIndex, 1);
     (this._config as any).rows = rows;
     this._emitChanged();
   };
   private _addRowEntity = (rowIndex: number) => {
     this._ensureRows();
-    const rows = [ ...(this._config as any).rows ];
+    const rows = [...(this._config as any).rows];
     const row = { ...(rows[rowIndex] || { entities: [] }) };
-    row.entities = Array.isArray(row.entities) ? [ ...row.entities ] : [];
+    row.entities = Array.isArray(row.entities) ? [...row.entities] : [];
     row.entities.push({ entity: "", name: "", icon: "", show_icon: true, show_state: true });
     rows[rowIndex] = row;
     (this._config as any).rows = rows;
@@ -95,9 +99,9 @@ export class RoomCardEditor extends LitElement {
   };
   private _removeRowEntity = (rowIndex: number, entIndex: number) => {
     this._ensureRows();
-    const rows = [ ...(this._config as any).rows ];
+    const rows = [...(this._config as any).rows];
     const row = { ...(rows[rowIndex] || { entities: [] }) };
-    row.entities = Array.isArray(row.entities) ? [ ...row.entities ] : [];
+    row.entities = Array.isArray(row.entities) ? [...row.entities] : [];
     row.entities.splice(entIndex, 1);
     rows[rowIndex] = row;
     (this._config as any).rows = rows;
@@ -105,9 +109,9 @@ export class RoomCardEditor extends LitElement {
   };
   private _updateRowEntity = (rowIndex: number, entIndex: number, key: string, value: any) => {
     this._ensureRows();
-    const rows = [ ...(this._config as any).rows ];
+    const rows = [...(this._config as any).rows];
     const row = { ...(rows[rowIndex] || { entities: [] }) };
-    row.entities = Array.isArray(row.entities) ? [ ...row.entities ] : [];
+    row.entities = Array.isArray(row.entities) ? [...row.entities] : [];
     const ent = { ...(row.entities[entIndex] || {}) };
     (ent as any)[key] = value;
     row.entities[entIndex] = ent;
@@ -116,24 +120,24 @@ export class RoomCardEditor extends LitElement {
     this._emitChanged();
   };
 
-  // ----- info entities -----
+  // ----- info entities (ohne show_state) -----
   private _addInfoEntity = () => {
     this._ensureInfo();
-    const info = [ ...(this._config as any).info_entities ];
-    info.push({ entity: "", name: "", icon: "", show_icon: true, show_state: true });
+    const info = [...(this._config as any).info_entities];
+    info.push({ entity: "", name: "", icon: "", show_icon: true });
     (this._config as any).info_entities = info;
     this._emitChanged();
   };
   private _removeInfoEntity = (index: number) => {
     this._ensureInfo();
-    const info = [ ...(this._config as any).info_entities ];
+    const info = [...(this._config as any).info_entities];
     info.splice(index, 1);
     (this._config as any).info_entities = info;
     this._emitChanged();
   };
   private _updateInfoEntity = (index: number, key: string, value: any) => {
     this._ensureInfo();
-    const info = [ ...(this._config as any).info_entities ];
+    const info = [...(this._config as any).info_entities];
     const ent = { ...(info[index] || {}) };
     (ent as any)[key] = value;
     info[index] = ent;
@@ -143,40 +147,55 @@ export class RoomCardEditor extends LitElement {
 
   // ---------- UI-Bausteine ----------
   private _TF(label: string, value: string, onInput: (v: string) => void) {
-    // Textfelder (Name/Icon-Fallbacks)
+    // nur noch für Name/Icon-Fallback
     return has.textfield()
-      ? html`<ha-textfield .value=${value ?? ""} label=${label} @input=${(e: any) => onInput(e.currentTarget.value)}></ha-textfield>`
-      : html`<label class="lbl">${label}<input class="plain" .value=${value ?? ""} @input=${(e: any) => onInput(e.currentTarget.value)} /></label>`;
+      ? html`<ha-textfield
+          .value=${value ?? ""}
+          label=${label}
+          @input=${(e: any) => onInput(e.currentTarget.value)}
+        ></ha-textfield>`
+      : html`<label class="lbl"
+          >${label}
+          <input class="plain" .value=${value ?? ""} @input=${(e: any) => onInput(e.currentTarget.value)} />
+        </label>`;
   }
 
-  // Immer Entity-Picker; ohne hass disabled (sichtbar)
+  // IMMER als ha-entity-picker rendern; ohne hass disabled
   private _EntityPicker(label: string, value: string, onChange: (v: string) => void) {
-    if (has.entityPicker()) {
-      return html`<ha-entity-picker
-        .hass=${this.hass}
-        .value=${value ?? ""}
-        label=${label}
-        allow-custom-entity
-        ?disabled=${!this.hass}
-        @value-changed=${(e: any) => onChange(e.detail.value)}
-      ></ha-entity-picker>`;
-    }
-    return this._TF(label + " (entity_id)", value, onChange);
+    return html`<ha-entity-picker
+      .hass=${this.hass}
+      .value=${value ?? ""}
+      label=${label}
+      allow-custom-entity
+      ?disabled=${!this.hass}
+      @value-changed=${(e: any) => onChange(e.detail.value)}
+    ></ha-entity-picker>`;
   }
 
   private _IconPicker(value: string, onChange: (v: string) => void) {
     return has.iconPicker()
-      ? html`<ha-icon-picker .value=${value ?? ""} label="Icon" @value-changed=${(e: any) => onChange(e.detail.value)}></ha-icon-picker>`
+      ? html`<ha-icon-picker
+          .value=${value ?? ""}
+          label="Icon"
+          @value-changed=${(e: any) => onChange(e.detail.value)}
+        ></ha-icon-picker>`
       : this._TF("Icon (mdi:…)", value, onChange);
   }
   private _Switch(label: string, checked: boolean, onChange: (v: boolean) => void) {
     if (has.haSwitch() && has.haFormfield()) {
-      return html`<ha-formfield label=${label}><ha-switch .checked=${!!checked} @change=${(e: any) => onChange(!!e.currentTarget.checked)}></ha-switch></ha-formfield>`;
+      return html`<ha-formfield label=${label}
+        ><ha-switch .checked=${!!checked} @change=${(e: any) => onChange(!!e.currentTarget.checked)}></ha-switch
+      ></ha-formfield>`;
     }
     if (has.mwcSwitch() && has.mwcFormfield()) {
-      return html`<mwc-formfield label=${label}><mwc-switch .checked=${!!checked} @change=${(e: any) => onChange(!!e.currentTarget.checked)}></mwc-switch></mwc-formfield>`;
+      return html`<mwc-formfield label=${label}
+        ><mwc-switch .checked=${!!checked} @change=${(e: any) => onChange(!!e.currentTarget.checked)}></mwc-switch
+      ></mwc-formfield>`;
     }
-    return html`<label class="lbl"><input type="checkbox" .checked=${!!checked} @change=${(e: any) => onChange(!!e.currentTarget.checked)} /> ${label}</label>`;
+    return html`<label class="lbl"
+      ><input type="checkbox" .checked=${!!checked} @change=${(e: any) => onChange(!!e.currentTarget.checked)} />
+      ${label}</label
+    >`;
   }
   private _Btn(label: string, onClick: () => void, kind: "primary" | "danger" | "ghost" = "primary") {
     return has.mwcButton()
@@ -229,17 +248,36 @@ export class RoomCardEditor extends LitElement {
                           (ent: any, ei: number) => html`
                             <div class="entity-block">
                               <div class="field">
-                                ${this._EntityPicker("Entity", ent.entity ?? "", (v) => this._updateRowEntity(ri, ei, "entity", v))}
+                                ${this._EntityPicker(
+                                  "Entity",
+                                  ent.entity ?? "",
+                                  (v) => this._updateRowEntity(ri, ei, "entity", v),
+                                )}
                               </div>
                               <div class="field">
-                                ${this._TF("Name (optional)", ent.name ?? "", (v) => this._updateRowEntity(ri, ei, "name", v))}
+                                ${this._TF(
+                                  "Name (optional)",
+                                  ent.name ?? "",
+                                  (v) => this._updateRowEntity(ri, ei, "name", v),
+                                )}
                               </div>
                               <div class="field">
-                                ${this._IconPicker(ent.icon ?? "", (v) => this._updateRowEntity(ri, ei, "icon", v))}
+                                ${this._IconPicker(
+                                  ent.icon ?? "",
+                                  (v) => this._updateRowEntity(ri, ei, "icon", v),
+                                )}
                               </div>
                               <div class="toggles">
-                                ${this._Switch("Show icon", ent.show_icon !== false, (v) => this._updateRowEntity(ri, ei, "show_icon", v))}
-                                ${this._Switch("Show state", ent.show_state !== false, (v) => this._updateRowEntity(ri, ei, "show_state", v))}
+                                ${this._Switch(
+                                  "Show icon",
+                                  ent.show_icon !== false,
+                                  (v) => this._updateRowEntity(ri, ei, "show_icon", v),
+                                )}
+                                ${this._Switch(
+                                  "Show state",
+                                  ent.show_state !== false,
+                                  (v) => this._updateRowEntity(ri, ei, "show_state", v),
+                                )}
                               </div>
                               <div class="actions">
                                 ${this._Btn("Remove", () => this._removeRowEntity(ri, ei), "danger")}
@@ -254,7 +292,7 @@ export class RoomCardEditor extends LitElement {
             : html`<div class="hint">No rows yet. Click “Add row”.</div>`}
         </div>
 
-        <!-- Info entities -->
+        <!-- Info entities (ohne Show state) -->
         <div class="section">
           <div class="section-title">
             Info entities
@@ -275,8 +313,11 @@ export class RoomCardEditor extends LitElement {
                       ${this._IconPicker(ent.icon ?? "", (v) => this._updateInfoEntity(i, "icon", v))}
                     </div>
                     <div class="toggles">
-                      ${this._Switch("Show icon", ent.show_icon !== false, (v) => this._updateInfoEntity(i, "show_icon", v))}
-                      ${this._Switch("Show state", ent.show_state !== false, (v) => this._updateInfoEntity(i, "show_state", v))}
+                      ${this._Switch(
+                        "Show icon",
+                        ent.show_icon !== false,
+                        (v) => this._updateInfoEntity(i, "show_icon", v),
+                      )}
                     </div>
                     <div class="actions">
                       ${this._Btn("Remove", () => this._removeInfoEntity(i), "danger")}
@@ -292,7 +333,6 @@ export class RoomCardEditor extends LitElement {
 
   static styles = css`
     :host { display:block; box-sizing:border-box; padding:4px 0 8px; }
-    /* Editorbreite begrenzen, damit er nicht in die Vorschau ragt */
     .form { display:grid; gap:16px; width:100%; max-width:560px; overflow:hidden; }
 
     .section { display:grid; gap:12px; padding:8px 0; border-top:1px solid var(--divider-color, #e0e0e0); }
