@@ -107,46 +107,46 @@ export class RoomCardEditor extends LitElement {
             <mwc-button dense @click=${this._addEntity}>Add entity</mwc-button>
           </div>
 
-          ${Array.isArray(c.entities) && c.entities.length
-            ? c.entities.map(
-                (ent: any, i: number) => html`
-                  <div class="entity-row">
-                    <ha-entity-picker
-                      .hass=${this.hass}
-                      .value=${ent.entity ?? ""}
-                      allow-custom-entity
-                      label="Entity"
-                      @value-changed=${(ev: any) => this._updateEntity(i, "entity", ev.detail.value)}
-                    ></ha-entity-picker>
+        ${Array.isArray(c.entities) && c.entities.length
+          ? c.entities.map(
+              (ent: any, i: number) => html`
+                <div class="entity-row">
+                  <ha-entity-picker
+                    .hass=${this.hass}
+                    .value=${ent.entity ?? ""}
+                    allow-custom-entity
+                    label="Entity"
+                    @value-changed=${(ev: any) => this._updateEntity(i, "entity", ev.detail.value)}
+                  ></ha-entity-picker>
 
-                    ${hasIconPicker()
-                      ? html`
-                          <ha-icon-picker
-                            .value=${ent.icon ?? ""}
-                            label="Icon"
-                            @value-changed=${(ev: any) => this._updateEntity(i, "icon", ev.detail.value)}
-                          ></ha-icon-picker>
-                        `
-                      : html`
-                          <ha-textfield
-                            .value=${ent.icon ?? ""}
-                            label="Icon (mdi:…)"
-                            @input=${(ev: any) => this._updateEntity(i, "icon", ev.currentTarget.value)}
-                          ></ha-textfield>
-                        `}
+                  ${hasIconPicker()
+                    ? html`
+                        <ha-icon-picker
+                          .value=${ent.icon ?? ""}
+                          label="Icon"
+                          @value-changed=${(ev: any) => this._updateEntity(i, "icon", ev.detail.value)}
+                        ></ha-icon-picker>
+                      `
+                    : html`
+                        <ha-textfield
+                          .value=${ent.icon ?? ""}
+                          label="Icon (mdi:…)"
+                          @input=${(ev: any) => this._updateEntity(i, "icon", ev.currentTarget.value)}
+                        ></ha-textfield>
+                      `}
 
-                    <mwc-formfield label="Show icon">
-                      <mwc-switch
-                        .checked=${ent.show_icon !== false}
-                        @change=${(ev: any) => this._updateEntity(i, "show_icon", ev.currentTarget.checked)}
-                      ></mwc-switch>
-                    </mwc-formfield>
+                  <mwc-formfield label="Show icon">
+                    <mwc-switch
+                      .checked=${ent.show_icon !== false}
+                      @change=${(ev: any) => this._updateEntity(i, "show_icon", ev.currentTarget.checked)}
+                    ></mwc-switch>
+                  </mwc-formfield>
 
-                    <mwc-button dense class="danger" @click=${() => this._removeEntity(i)}>Remove</mwc-button>
-                  </div>
-                `,
-              )
-            : html`<div class="hint">No entities yet. Click “Add entity”.</div>`}
+                  <mwc-button dense class="danger" @click=${() => this._removeEntity(i)}>Remove</mwc-button>
+                </div>
+              `,
+            )
+          : html`<div class="hint">No entities yet. Click “Add entity”.</div>`}
         </div>
 
         <div class="section">
@@ -162,38 +162,13 @@ export class RoomCardEditor extends LitElement {
   }
 
   static styles = css`
-    .form {
-      display: grid;
-      gap: 16px;
-    }
-    .section {
-      display: grid;
-      gap: 12px;
-      padding: 8px 0;
-      border-top: 1px solid var(--divider-color, #e0e0e0);
-    }
-    .section:first-child {
-      border-top: none;
-    }
-    .section-title {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      font-weight: 600;
-    }
-    .entity-row {
-      display: grid;
-      grid-template-columns: 1fr 180px auto auto;
-      align-items: center;
-      gap: 12px;
-    }
-    .hint {
-      opacity: 0.7;
-      font-style: italic;
-    }
-    mwc-button.danger {
-      --mdc-theme-primary: var(--error-color, #d32f2f);
-    }
+    .form { display: grid; gap: 16px; }
+    .section { display: grid; gap: 12px; padding: 8px 0; border-top: 1px solid var(--divider-color, #e0e0e0); }
+    .section:first-child { border-top: none; }
+    .section-title { display: flex; align-items: center; justify-content: space-between; font-weight: 600; }
+    .entity-row { display: grid; grid-template-columns: 1fr 180px auto auto; align-items: center; gap: 12px; }
+    .hint { opacity: .7; font-style: italic; }
+    mwc-button.danger { --mdc-theme-primary: var(--error-color, #d32f2f); }
   `;
 }
 
