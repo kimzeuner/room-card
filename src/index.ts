@@ -164,3 +164,100 @@ export class RoomCard extends LitElement {
         if (
           !this.monitoredStates ||
           (prev as any)?.last_updated < (incoming as any).last_updated ||
+          (prev as any)?.last_changed < (incoming as any).last_changed ||
+          incoming !== (newStates as any)[entityId]
+        ) {
+          anyUpdates = true;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (newStates as any)[entityId] = incoming;
+        }
+      } else if (this.monitoredStates && entityId in (this.monitoredStates as HassEntities)) {
+        anyUpdates = true;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        delete (newStates as any)[entityId];
+      }
+    }
+
+    if (anyUpdates) this.monitoredStates = newStates;
+  }
+
+  static get styles(): CSSResult {
+    return style;
+  }
+
+  render(): TemplateResult {
+    if (!this.config) return html``;
+
+    if (!this._hass) {
+      const t = this.config.title ?? "Room";
+      return html`
+        <ha-card elevation="2">
+          <div class="card-header"><div class="name">${t}</div></div>
+          <div style="padding:12px; opacity:.7">Preview…</div>
+        </ha-card>
+      `;
+    }
+
+    if (this._configError) {
+      return html`<hui-warning>${this._configError}</hui-warning>`;
+    }
+
+    try {
+      const { entity, info_entities = [], entities = [], rows = [], stateObj } = parseConfig(this.config, this._hass);
+      this.stateObj = stateObj;
+
+      return html`
+        <ha-card elevation="2" style="${entityStyles(this.config.card_styles, stateObj, this._hass)}">
+          <div class="card-header">
+            ${renderTitle(this.config, this._hass, this, entity)}
+            <div class="entities-info-row">
+              ${info_entities.map((ie) => renderInfoEntity(ie, this._hass!, this))}
+            </div>
+          </div>
+
+          ${rows && rows.length > 0
+            ? renderRows(rows, this._hass, this)
+            : renderEntitiesRow(this.config, entities, this._hass, this)}
+
+          ${this.config.cards?.map((card) => this.createCardElement(card, this._hass!))}
+        </ha-card>
+      `;
+    } catch (e: any) {
+      console.warn("ROOM-CARD render error:", e);
+      return html`<hui-warning>${e?.toString?.() ?? e}</hui-warning>`;
+    }
+  }
+
+  getCardSize(): number {
+    const numberOfCards = this.config?.cards ? this.config.cards.length : 0;
+    const numberOfRows = this.config?.rows ? this.config.rows.length : 0;
+    const mainSize = !this.config?.info_entities && this.config?.hide_title ? 1 : 2;
+    const entitiesRow = this.config?.entities && this.config.entities.length > 0 ? 1 : 0;
+    return numberOfCards + numberOfRows + entitiesRow + mainSize;
+  }
+
+  private createCardElement(config: RoomCardLovelaceCardConfig, hass: HomeAssistant) {
+    if (
+      hideIfCard(config, hass) ||
+      (config.show_states && config.entity && !config.show_states.includes(hass.states[config.entity]?.state))
+    ) {
+      return null;
+    }
+
+    let element: LovelaceCard;
+    if (this._helpers) element = this._helpers.createCardElement(config);
+    else element = createThing(config);
+
+    (element as any).hass = hass;
+    (element.style as any).boxShadow = "none";
+    (element.style as any).borderRadius = "0";
+    return element;
+  }
+}
+
+const TAG = "room-card";
+if (!customElements.get(TAG)) {
+  customElements.define(TAG, RoomCard);
+  console.info("ROOM-CARD: custom element defined");
+}
+export default RoomCard;
