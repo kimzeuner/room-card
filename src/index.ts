@@ -39,6 +39,7 @@ if (!window.customCards.some((c) => c.type === "room-card")) {
 export class RoomCard extends LitElement {
   // ----- Lovelace Hooks (Editor-Unterstützung) -----
   static getConfigElement() {
+    console.info("ROOM-CARD: getConfigElement()");
     return document.createElement("room-card-editor");
   }
   static getStubConfig(hass?: HomeAssistant, entities?: string[]) {
