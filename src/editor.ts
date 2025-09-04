@@ -359,32 +359,53 @@ export class RoomCardEditor extends LitElement {
 
   static styles = css`
     :host { display:block; box-sizing:border-box; padding:4px 0 8px; }
-    .form { display:grid; gap:16px; width:100%; max-width:560px; overflow:hidden; }
-
+    /* Breite begrenzen, aber Dropdowns nicht mehr abschneiden */
+    .form { display:grid; gap:16px; width:100%; max-width:560px; overflow:visible; }
+  
     .section { display:grid; gap:12px; padding:8px 0; border-top:1px solid var(--divider-color, #e0e0e0); }
     .section:first-child { border-top:none; }
     .section-title { display:flex; align-items:center; justify-content:space-between; gap:12px; font-weight:600; flex-wrap:wrap; }
-
+  
     .row-card { border:1px solid var(--divider-color, #e0e0e0); border-radius:10px; padding:10px; display:grid; gap:12px; }
     .row-header { display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; }
     .row-actions { display:flex; gap:8px; flex-wrap:wrap; }
-
-    .entity-block { display:grid; grid-template-columns: 1fr; gap:10px; padding:8px; border:1px dashed var(--divider-color,#ddd); border-radius:8px; }
-    .field { min-width:0; }
-    ha-textfield, ha-entity-picker, ha-icon-picker { width:100%; }
+  
+    /* JEDES Feld darf überlaufen (für Dropdown-Overlays) */
+    .entity-block { display:grid; grid-template-columns: 1fr; gap:10px; padding:8px; border:1px dashed var(--divider-color,#ddd); border-radius:8px; overflow:visible; }
+    .field { min-width:0; overflow:visible; }
+  
+    /* Breiten/Box-Sizing erzwingen, damit Chevron sichtbar bleibt */
+    ha-entity-picker,
+    ha-icon-picker,
+    ha-textfield,
+    ha-combo-box {
+      width: 100%;
+      max-width: 100%;
+      box-sizing: border-box;
+      display: block;
+    }
+  
+    /* Menü unter dem Feld öffnen & gleiche Breite wie das Feld (mwc menu) */
+    ha-entity-picker,
+    ha-icon-picker {
+      --mdc-menu-min-width: 100%;
+    }
+  
+    /* HA-Toggles & Buttons */
     .toggles { display:grid; gap:8px; align-content:start; }
     .actions { display:flex; gap:8px; justify-content:flex-end; }
-
+  
     .hint { opacity:.7; font-style:italic; }
     .lbl { display:grid; gap:6px; font-size:.9rem; }
     input.plain { width:100%; padding:8px; border:1px solid var(--divider-color,#ddd); border-radius:6px; background:var(--card-background-color,#fff); color: var(--primary-text-color); }
-
+  
     .plain-btn { padding:6px 10px; border-radius:8px; border:1px solid var(--divider-color,#ccc); background: var(--secondary-background-color,#f6f6f6); cursor:pointer; }
     .plain-btn.ghost { background:transparent; }
     .plain-btn.danger { border-color: var(--error-color,#d32f2f); color: var(--error-color,#d32f2f); }
-
+  
     mwc-button.danger { --mdc-theme-primary: var(--error-color, #d32f2f); }
   `;
+
 }
 
 // doppelte Registrierung vermeiden
