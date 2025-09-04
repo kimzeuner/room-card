@@ -1,24 +1,24 @@
-import { html, LitElement, PropertyValues, TemplateResult, CSSResult } from "lit";
+import { html, LitElement, TemplateResult, CSSResult } from "lit";
 import { property } from "lit/decorators.js";
 
 import type { HomeAssistant, LovelaceCard, LovelaceCardConfig } from "custom-card-helpers";
 import { createThing } from "custom-card-helpers";
 import type { HassEntities } from "home-assistant-js-websocket";
 
-// Deine Module (dürfen crashen – wir fangen alles ab)
+// Eigene Module
 import { checkConfig, entityStyles, renderEntitiesRow, renderInfoEntity, renderRows, renderTitle } from "./entity";
 import { getEntityIds, parseConfig } from "./util";
 import { hideIfCard } from "./hide";
 import { style } from "./styles";
 import type { HomeAssistantEntity, RoomCardConfig, RoomCardLovelaceCardConfig } from "./types/room-card-types";
 
-// Editor registrieren
+// Editor registrieren (wichtig für visuellen Editor)
 import "./editor";
 
-// --- Diagnose-Basis: zeigt eindeutig, dass das Skript geladen wurde
-console.info("ROOM-CARD: script executed (debug)");
+// Diagnose-Log, zeigt dass die Ressource geladen wurde
+console.info("ROOM-CARD: script executed");
 
-// Im Editor-Katalog anzeigen
+// Lovelace-Katalog-Eintrag (idempotent)
 declare global {
   interface Window {
     customCards?: Array<{ type: string; name: string; description?: string; preview?: boolean }>;
@@ -30,49 +30,35 @@ if (!window.customCards.some((c) => c.type === "room-card")) {
   window.customCards.push({
     type: "room-card",
     name: "Room Card",
-    description: "Debug build with hard fallbacks & logs",
+    description:
+      "Show multiple entity states, attributes and icons in a single card in Home Assistant's Lovelace UI",
     preview: true,
   });
 }
 
 export class RoomCard extends LitElement {
-  // ---- Lovelace Editor Hooks
+  // ----- Lovelace Hooks (Editor-Unterstützung) -----
   static getConfigElement() {
     return document.createElement("room-card-editor");
   }
-  static getStubConfig(_hass?: HomeAssistant, entities?: string[]) {
+  static getStubConfig(hass?: HomeAssistant, entities?: string[]) {
     const first = Array.isArray(entities) && entities.length ? entities[0] : undefined;
     return { type: "custom:room-card", title: "Room", entity: first, show_icon: true };
   }
 
-  // ---- Reactive Felder
+  // ----- Reactive Properties -----
   @property({ attribute: false }) monitoredStates?: HassEntities = {};
   @property({ attribute: false }) _hass?: HomeAssistant;
   @property({ attribute: false }) config?: RoomCardConfig;
 
-  // ---- Nicht reaktiv
+  // Nicht reaktiv
   private _configError?: string;
   private stateObj?: HomeAssistantEntity;
+
+  // Card helpers (werden ggf. dynamisch geladen)
   private _helpers?: { createCardElement(config: LovelaceCardConfig): LovelaceCard };
 
-  // ---- Extra-Diagnose: Lebenszyklus-Logs
-  constructor() {
-    super();
-    console.info("ROOM-CARD: constructor()");
-  }
-  connectedCallback() {
-    super.connectedCallback();
-    console.info("ROOM-CARD: connectedCallback()");
-  }
-  firstUpdated() {
-    console.info("ROOM-CARD: firstUpdated()");
-  }
-  updated(changed: PropertyValues) {
-    console.info("ROOM-CARD: updated()", Array.from(changed.keys()));
-  }
-
-
-  // ---- Hilfsfunktionen
+  // ----- Setup -----
   private getChildCustomCardTypes(cards: RoomCardLovelaceCardConfig[] | undefined, target: Set<string>) {
     if (!cards) return;
     for (const card of cards) {
@@ -83,16 +69,13 @@ export class RoomCard extends LitElement {
   private async waitForDependentComponents(config: RoomCardConfig) {
     const types = new Set<string>();
     this.getChildCustomCardTypes(config.cards, types);
-    if (types.size) {
-      console.info("ROOM-CARD: waiting for custom elements", Array.from(types));
-      await Promise.all(Array.from(types).map((t) => customElements.whenDefined(t)));
-    }
+    if (types.size) await Promise.all(Array.from(types).map((t) => customElements.whenDefined(t)));
   }
 
   async setConfig(config: RoomCardConfig) {
-    console.info("ROOM-CARD: setConfig()", config);
     this._configError = undefined;
 
+    // checkConfig darf die Anzeige nicht verhindern
     try {
       checkConfig(config);
     } catch (e: any) {
@@ -100,8 +83,10 @@ export class RoomCard extends LitElement {
       console.warn("ROOM-CARD config warning:", e);
     }
 
-    this.config = { ...(config || ({} as any)), entityIds: getEntityIds(config || ({} as any)) };
+    // entityIds vorbereiten (fail-safe)
+    this.config = { ...(config || {}), entityIds: getEntityIds(config || ({} as any)) };
 
+    // Im Editor nicht auf fremde Custom-Cards warten (Freeze vermeiden)
     const inEditor = document.querySelector("hui-card-editor") !== null;
     if (!inEditor) {
       await this.waitForDependentComponents(this.config);
@@ -109,15 +94,12 @@ export class RoomCard extends LitElement {
 
     if (typeof window.loadCardHelpers === "function") {
       this._helpers = await window.loadCardHelpers();
-      console.info("ROOM-CARD: card helpers loaded");
     }
-
     this.requestUpdate();
   }
 
   set hass(hass: HomeAssistant) {
     this._hass = hass;
-    console.info("ROOM-CARD: hass setter called");
     if (hass && this.config) {
       this.updateMonitoredStates(hass);
       (this.config as any).hass = hass;
@@ -154,28 +136,35 @@ export class RoomCard extends LitElement {
     if (anyUpdates) this.monitoredStates = newStates;
   }
 
+  // ----- Styles -----
   static get styles(): CSSResult {
     return style;
   }
 
+  // ----- Rendering -----
   render(): TemplateResult {
-    // 1) Wenn HA den Card-Lifecycle noch nicht getriggert hat: *immer* eine sichtbare Vorschau
     if (!this.config) {
-      return html`<ha-card><div style="padding:12px;opacity:.7">It works (no config yet)</div></ha-card>`;
-    }
-    if (!this._hass) {
-      const t = this.config.title ?? "Room";
-      return html`<ha-card><div class="card-header"><div class="name">${t}</div></div>
-        <div style="padding:12px;opacity:.7">It works (preview, no hass)</div></ha-card>`;
+      return html``;
     }
 
-    // 2) Konfig-Fehler sichtbar machen
+    // Editor/Preview ohne hass
+    if (!this._hass) {
+      const t = this.config.title ?? "Room";
+      return html`
+        <ha-card elevation="2">
+          <div class="card-header"><div class="name">${t}</div></div>
+          <div style="padding:12px; opacity:.7">Preview…</div>
+        </ha-card>
+      `;
+    }
+
+    // Falls checkConfig o. ä. gemeckert hat → sichtbar machen
     if (this._configError) {
       return html`<hui-warning>${this._configError}</hui-warning>`;
     }
 
-    // 3) Echte Logik – aber hart in try/catch, damit nie „unsichtbar“
     try {
+      // parseConfig kann werfen – deshalb *innerhalb* des try/catch
       const { entity, info_entities = [], entities = [], rows = [], stateObj } = parseConfig(this.config, this._hass);
       this.stateObj = stateObj;
 
