@@ -17,6 +17,26 @@ const has = {
 };
 
 let _datalistCounter = 0;
+let _radioGroupCounter = 0;
+
+type IconCondition = {
+  entity: string;
+  operator?: "=" | "!=" | "<" | ">" | "<=" | ">=" | "contains"; // optional, default "="
+  value: string;
+  icon: string;
+};
+type IconConditions = {
+  conditions: IconCondition[];
+  else?: string;
+};
+
+function isObject(v: any): v is Record<string, unknown> {
+  return v !== null && typeof v === "object" && !Array.isArray(v);
+}
+
+function isIconConditions(v: any): v is IconConditions {
+  return isObject(v) && Array.isArray((v as any).conditions);
+}
 
 @customElement("room-card-editor")
 export class RoomCardEditor extends LitElement {
@@ -76,7 +96,7 @@ export class RoomCardEditor extends LitElement {
     if (!Array.isArray((this._config as any).info_entities)) (this._config as any).info_entities = [];
   }
 
-  // Home Assistant 2025.9.x: Overlay-Position im Dialog zickt -> Fallback erzwingen
+  // HA 2025.9.x: Overlay-Position im Dialog zickt -> Fallback erzwingen
   private _isBuggyPicker(): boolean {
     const v = this.hass?.config?.version ?? "";
     const m = v.match(/^(\d+)\.(\d+)\.(\d+)/);
@@ -165,7 +185,7 @@ export class RoomCardEditor extends LitElement {
     this._emitChanged();
   };
 
-  // ---------- UI-Bausteine ----------
+  // ---------- UI primitives ----------
   private _TF(label: string, value: string, onInput: (v: string) => void) {
     // Nur für Name/Icon-Fallbacks
     return has.textfield()
@@ -194,12 +214,9 @@ export class RoomCardEditor extends LitElement {
             allow-custom-entity
             ?disabled=${!this.hass}
             style="
-              width:100%;
-              display:block;
-              /* gleiche Breite wie Feld */
+              width:100%; display:block;
               --mdc-menu-min-width: 100%;
               --vaadin-combo-box-overlay-width: 100%;
-              /* kleine Distanz nach unten */
               --mdc-menu-surface-vertical-offset: 2px;
             "
             @value-changed=${(e: any) => onChange(e.detail.value)}
@@ -264,6 +281,194 @@ export class RoomCardEditor extends LitElement {
       : html`<button class="plain-btn ${kind}" @click=${onClick}>${label}</button>`;
   }
 
+  // ---------- Icon Control (Static vs Conditional) ----------
+  private _IconControl(
+    label: string,
+    // entweder: string (static) ODER: {conditions:[...], else?:string} ODER: {icon_conditions:{...}}
+    source: "header" | "row" | "info",
+    indices: { ri?: number; ei?: number; ii?: number } | null,
+    data: any,
+  ) {
+    // "icon_conditions" Feld erkennen und als Quelle bevorzugen
+    let value: any = (data && (data.icon_conditions ?? data.icon)) ?? "";
+    const modeConditional = isIconConditions(value) || isIconConditions(data?.icon_conditions);
+
+    const radioName = `rc-icon-mode-${++_radioGroupCounter}`;
+
+    const setStatic = () => {
+      const newIcon = typeof value === "string" ? value : "";
+      this._assignIcon(source, indices, { icon: newIcon, icon_conditions: undefined });
+    };
+
+    const setConditional = () => {
+      const obj: IconConditions = isIconConditions(value)
+        ? value
+        : { conditions: [{ entity: "", operator: "=", value: "", icon: "" }], else: "" };
+      this._assignIcon(source, indices, { icon: undefined, icon_conditions: obj });
+    };
+
+    const updateStaticIcon = (v: string) => {
+      this._assignIcon(source, indices, { icon: v, icon_conditions: undefined });
+    };
+
+    const updateCond = (next: IconConditions) => {
+      this._assignIcon(source, indices, { icon: undefined, icon_conditions: next });
+    };
+
+    // UI
+    return html`
+      <div class="icon-control">
+        <div class="icon-mode">
+          <label><input type="radio" name=${radioName} .checked=${!modeConditional} @change=${setStatic} /> Static</label>
+          <label><input type="radio" name=${radioName} .checked=${modeConditional} @change=${setConditional} /> Conditional</label>
+        </div>
+
+        ${modeConditional
+          ? this._IconConditionsEditor(label, value?.conditions ? (value as IconConditions) : (data.icon_conditions as IconConditions) , updateCond)
+          : html`<div class="field">${this._IconPicker(typeof value === "string" ? value : "", updateStaticIcon)}</div>`}
+      </div>
+    `;
+  }
+
+  private _IconConditionsEditor(label: string, value: IconConditions | undefined, onChange: (v: IconConditions) => void) {
+    const current: IconConditions = value && isIconConditions(value) ? value : { conditions: [], else: "" };
+
+    const changeCond = (idx: number, patch: Partial<IconCondition>) => {
+      const next: IconConditions = {
+        conditions: [...current.conditions],
+        else: current.else ?? "",
+      };
+      next.conditions[idx] = { ...next.conditions[idx], ...patch };
+      onChange(next);
+    };
+
+    const addCond = () => {
+      const next: IconConditions = { conditions: [...current.conditions], else: current.else ?? "" };
+      next.conditions.push({ entity: "", operator: "=", value: "", icon: "" });
+      onChange(next);
+    };
+
+    const removeCond = (idx: number) => {
+      const next: IconConditions = { conditions: [...current.conditions], else: current.else ?? "" };
+      next.conditions.splice(idx, 1);
+      onChange(next);
+    };
+
+    const changeElse = (v: string) => {
+      const next: IconConditions = { conditions: [...current.conditions], else: v };
+      onChange(next);
+    };
+
+    return html`
+      <div class="cond-wrap">
+        <div class="cond-title">${label} – Conditions</div>
+        ${current.conditions.length
+          ? current.conditions.map(
+              (c, i) => html`
+                <div class="cond-row">
+                  <div class="field">${this._EntityPicker("Entity", c.entity ?? "", (v) => changeCond(i, { entity: v }))}</div>
+                  <div class="field">
+                    <ha-select
+                      naturalMenuWidth
+                      label="Operator"
+                      .value=${c.operator ?? "="}
+                      @selected=${(e: any) => changeCond(i, { operator: (e.target as any).value })}
+                      @closed=${(e: any) => e.stopPropagation()}
+                    >
+                      <mwc-list-item value="=">=</mwc-list-item>
+                      <mwc-list-item value="!=">!=</mwc-list-item>
+                      <mwc-list-item value="<"><</mwc-list-item>
+                      <mwc-list-item value=">">></mwc-list-item>
+                      <mwc-list-item value="<="><=</mwc-list-item>
+                      <mwc-list-item value=">=">>=</mwc-list-item>
+                      <mwc-list-item value="contains">contains</mwc-list-item>
+                    </ha-select>
+                  </div>
+                  <div class="field">
+                    ${this._TF("Value", c.value ?? "", (v) => changeCond(i, { value: v }))}
+                  </div>
+                  <div class="field">
+                    ${this._IconPicker(c.icon ?? "", (v) => changeCond(i, { icon: v }))}
+                  </div>
+                  <div class="actions">${this._Btn("Remove", () => removeCond(i), "danger")}</div>
+                </div>
+              `,
+            )
+          : html`<div class="hint">No conditions yet.</div>`}
+
+        <div class="actions">${this._Btn("Add condition", addCond, "ghost")}</div>
+
+        <div class="field">
+          ${this._IconPicker(current.else ?? "", changeElse)}
+        </div>
+        <div class="hint">Optional “else” icon (used if no condition matches).</div>
+      </div>
+    `;
+  }
+
+  // trägt Icon / Icon-Conditions ins passende Ziel ein
+  private _assignIcon(
+    source: "header" | "row" | "info",
+    indices: { ri?: number; ei?: number; ii?: number } | null,
+    payload: { icon?: string | undefined; icon_conditions?: IconConditions | undefined },
+  ) {
+    if (!this._config) return;
+
+    if (source === "header") {
+      const next: any = { ...(this._config as any) };
+      if (payload.icon_conditions !== undefined) {
+        delete next.icon;
+        next.icon_conditions = payload.icon_conditions;
+      } else {
+        delete next.icon_conditions;
+        next.icon = payload.icon ?? "";
+      }
+      this._config = next as RoomCardConfig;
+      this._emitChanged();
+      return;
+    }
+
+    if (source === "row" && indices && typeof indices.ri === "number" && typeof indices.ei === "number") {
+      this._ensureRows();
+      const rows = [...((this._config as any).rows ?? [])];
+      const row = { ...(rows[indices.ri] || { entities: [] }) };
+      row.entities = Array.isArray(row.entities) ? [...row.entities] : [];
+      const ent = { ...(row.entities[indices.ei] || {}) };
+
+      if (payload.icon_conditions !== undefined) {
+        delete (ent as any).icon;
+        (ent as any).icon_conditions = payload.icon_conditions;
+      } else {
+        delete (ent as any).icon_conditions;
+        (ent as any).icon = payload.icon ?? "";
+      }
+
+      row.entities[indices.ei] = ent;
+      rows[indices.ri] = row;
+      (this._config as any).rows = rows;
+      this._emitChanged();
+      return;
+    }
+
+    if (source === "info" && indices && typeof indices.ii === "number") {
+      this._ensureInfo();
+      const info = [...((this._config as any).info_entities ?? [])];
+      const ent = { ...(info[indices.ii] || {}) };
+
+      if (payload.icon_conditions !== undefined) {
+        delete (ent as any).icon;
+        (ent as any).icon_conditions = payload.icon_conditions;
+      } else {
+        delete (ent as any).icon_conditions;
+        (ent as any).icon = payload.icon ?? "";
+      }
+
+      info[indices.ii] = ent;
+      (this._config as any).info_entities = info;
+      this._emitChanged();
+    }
+  }
+
   // ---------- render ----------
   protected render(): TemplateResult {
     if (!this._config) return html`<div class="hint">Loading editor…</div>`;
@@ -279,6 +484,9 @@ export class RoomCardEditor extends LitElement {
           </div>
           <div class="field">
             ${this._EntityPicker("Entity (required)", c.entity ?? "", (v) => this._set("entity", v))}
+          </div>
+          <div class="field">
+            ${this._IconControl("Icon", "header", null, c)}
           </div>
           <div class="toggles">
             ${this._Switch("Hide title", !!c.hide_title, (v) => this._set("hide_title", v))}
@@ -323,10 +531,7 @@ export class RoomCardEditor extends LitElement {
                                 )}
                               </div>
                               <div class="field">
-                                ${this._IconPicker(
-                                  ent.icon ?? "",
-                                  (v) => this._updateRowEntity(ri, ei, "icon", v),
-                                )}
+                                ${this._IconControl("Icon", "row", { ri, ei }, ent)}
                               </div>
                               <div class="toggles">
                                 ${this._Switch(
@@ -371,7 +576,7 @@ export class RoomCardEditor extends LitElement {
                       ${this._TF("Name (optional)", ent.name ?? "", (v) => this._updateInfoEntity(i, "name", v))}
                     </div>
                     <div class="field">
-                      ${this._IconPicker(ent.icon ?? "", (v) => this._updateInfoEntity(i, "icon", v))}
+                      ${this._IconControl("Icon", "info", { ii: i }, ent)}
                     </div>
                     <div class="toggles">
                       ${this._Switch(
@@ -434,6 +639,16 @@ export class RoomCardEditor extends LitElement {
     ha-entity-picker {
       --mdc-menu-min-width: 100%;
       --vaadin-combo-box-overlay-width: 100%;
+    }
+
+    /* Icon-Mode Umschalter & Conditions */
+    .icon-control { display:grid; gap:8px; }
+    .icon-mode { display:flex; gap:16px; align-items:center; }
+    .cond-wrap { display:grid; gap:10px; padding:8px; border:1px dashed var(--divider-color,#ddd); border-radius:8px; }
+    .cond-title { font-weight:600; }
+    .cond-row { display:grid; gap:8px; grid-template-columns: 1fr; }
+    @media (min-width: 560px) {
+      .cond-row { grid-template-columns: 1fr 140px 1fr 1fr auto; align-items:end; }
     }
 
     /* HA-Toggles & Buttons */
