@@ -11,7 +11,7 @@ import { hideIfCard } from "./hide";
 import { style } from "./styles";
 import type { HomeAssistantEntity, RoomCardConfig, RoomCardLovelaceCardConfig } from "./types/room-card-types";
 
-// ⬇️ WICHTIG: Editor statisch importieren, damit er im Hauptbundle landet
+// Editor statisch importieren, damit er im Hauptbundle landet (keine ChunkLoadErrors)
 import "./editor";
 
 console.info("ROOM-CARD: script executed");
@@ -22,6 +22,8 @@ declare global {
     loadCardHelpers?: () => Promise<{ createCardElement(config: LovelaceCardConfig): LovelaceCard }>;
   }
 }
+
+// Registrierung in der Lovelace-Kartenliste (für UI-Katalog)
 window.customCards = window.customCards || [];
 if (!window.customCards.some((c) => c.type === "room-card")) {
   window.customCards.push({
@@ -34,17 +36,18 @@ if (!window.customCards.some((c) => c.type === "room-card")) {
 }
 
 export class RoomCard extends LitElement {
-  // ----- Lovelace Hooks (Editor-Unterstützung) -----
+  // ----- Lovelace Hooks (Editor) -----
   static getConfigElement() {
     console.info("ROOM-CARD: getConfigElement()");
-    // Direkt den echten Editor liefern (ist bereits registriert, weil statisch importiert)
     return document.createElement("room-card-editor");
   }
+
   static getStubConfig(_hass?: HomeAssistant, entities?: string[]) {
     const first = Array.isArray(entities) && entities.length ? entities[0] : undefined;
     return { type: "custom:room-card", title: "Room", entity: first, show_icon: true };
   }
 
+  // ----- State -----
   @property({ attribute: false }) monitoredStates?: HassEntities = {};
   @property({ attribute: false }) _hass?: HomeAssistant;
   @property({ attribute: false }) config?: RoomCardConfig;
@@ -53,6 +56,7 @@ export class RoomCard extends LitElement {
   private stateObj?: HomeAssistantEntity;
   private _helpers?: { createCardElement(config: LovelaceCardConfig): LovelaceCard };
 
+  // ----- Helper: abhängige Custom-Cards warten -----
   private getChildCustomCardTypes(cards: RoomCardLovelaceCardConfig[] | undefined, target: Set<string>) {
     if (!cards) return;
     for (const card of cards) {
@@ -66,6 +70,7 @@ export class RoomCard extends LitElement {
     if (types.size) await Promise.all(Array.from(types).map((t) => customElements.whenDefined(t)));
   }
 
+  // ----- Lovelace: setConfig / hass Setter -----
   async setConfig(config: RoomCardConfig) {
     this._configError = undefined;
     try {
@@ -74,8 +79,11 @@ export class RoomCard extends LitElement {
       this._configError = e?.message || String(e);
       console.warn("ROOM-CARD config warning:", e);
     }
-    this.config = { ...(config || {}), entityIds: getEntityIds(config || ({} as any)) };
 
+    // entityIds vorbelegen, damit shouldUpdate/monitoredStates greifen
+    this.config = { ...(config || ({} as any)), entityIds: getEntityIds(config || ({} as any)) };
+
+    // Auf Dependencies warten (außer im Editor)
     const inEditor = document.querySelector("hui-card-editor") !== null;
     if (!inEditor) {
       await this.waitForDependentComponents(this.config);
@@ -91,11 +99,13 @@ export class RoomCard extends LitElement {
     this._hass = hass;
     if (hass && this.config) {
       this.updateMonitoredStates(hass);
+      // @ts-expect-error: hass wird zur Laufzeit in die Config injiziert, weil viele helper-Funktionen das so erwarten
       (this.config as any).hass = hass;
     }
     this.requestUpdate();
   }
 
+  // ----- Entity-Cache (Monitored States) -----
   private updateMonitoredStates(hass: HomeAssistant): void {
     const newStates: HassEntities = { ...(this.monitoredStates || {}) } as HassEntities;
     let anyUpdates = false;
@@ -125,13 +135,16 @@ export class RoomCard extends LitElement {
     if (anyUpdates) this.monitoredStates = newStates;
   }
 
+  // ----- Styling -----
   static get styles(): CSSResult {
     return style;
   }
 
+  // ----- Render -----
   render(): TemplateResult {
     if (!this.config) return html``;
 
+    // Editor-Preview ohne hass
     if (!this._hass) {
       const t = this.config.title ?? "Room";
       return html`
@@ -150,14 +163,30 @@ export class RoomCard extends LitElement {
       const { entity, info_entities = [], entities = [], rows = [], stateObj } = parseConfig(this.config, this._hass);
       this.stateObj = stateObj;
 
+      // --- Header wirklich ausblenden, wenn gewünscht ---
+      const hasInfo = Array.isArray(info_entities) && info_entities.length > 0;
+      const hasHeaderIcon =
+        // einfache Header-Icons
+        (this.config as any)?.icon ||
+        // oder neue Icon-Conditions (vom Editor)
+        !!(this.config as any)?.icon_conditions;
+
+      const shouldShowHeader = !this.config.hide_title || hasInfo || hasHeaderIcon;
+      // Debug:
+      // console.debug("ROOM-CARD: shouldShowHeader=", shouldShowHeader, { hide_title: this.config.hide_title, hasInfo, hasHeaderIcon });
+
       return html`
         <ha-card elevation="2" style="${entityStyles(this.config.card_styles, stateObj, this._hass)}">
-          <div class="card-header">
-            ${renderTitle(this.config, this._hass, this, entity)}
-            <div class="entities-info-row">
-              ${info_entities.map((ie) => renderInfoEntity(ie, this._hass!, this))}
-            </div>
-          </div>
+          ${shouldShowHeader
+            ? html`
+                <div class="card-header">
+                  ${renderTitle(this.config, this._hass, this, entity)}
+                  <div class="entities-info-row">
+                    ${info_entities.map((ie) => renderInfoEntity(ie, this._hass!, this))}
+                  </div>
+                </div>
+              `
+            : null}
 
           ${rows && rows.length > 0
             ? renderRows(rows, this._hass, this)
@@ -172,14 +201,23 @@ export class RoomCard extends LitElement {
     }
   }
 
+  // ----- Größe für Layout -----
   getCardSize(): number {
     const numberOfCards = this.config?.cards ? this.config.cards.length : 0;
     const numberOfRows = this.config?.rows ? this.config.rows.length : 0;
-    const mainSize = !this.config?.info_entities && this.config?.hide_title ? 1 : 2;
     const entitiesRow = this.config?.entities && this.config.entities.length > 0 ? 1 : 0;
-    return numberOfCards + numberOfRows + entitiesRow + mainSize;
+
+    const hasInfo = Array.isArray(this.config?.info_entities) && (this.config?.info_entities?.length ?? 0) > 0;
+    const hasHeaderIcon =
+      (this.config as any)?.icon || !!(this.config as any)?.icon_conditions;
+
+    const headerVisible = !this.config?.hide_title || hasInfo || hasHeaderIcon;
+    const headerSize = headerVisible ? 1 : 0;
+
+    return numberOfCards + numberOfRows + entitiesRow + headerSize;
   }
 
+  // ----- Child-Karten erzeugen -----
   private createCardElement(config: RoomCardLovelaceCardConfig, hass: HomeAssistant) {
     if (
       hideIfCard(config, hass) ||
@@ -199,6 +237,7 @@ export class RoomCard extends LitElement {
   }
 }
 
+// Einmalig registrieren
 const TAG = "room-card";
 if (!customElements.get(TAG)) {
   customElements.define(TAG, RoomCard);
