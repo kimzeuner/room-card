@@ -29,6 +29,7 @@ export class RoomCardEditor extends LitElement {
 
   public setConfig(config: RoomCardConfig): void {
     console.info("ROOM-CARD-EDITOR: setConfig()", config);
+
     const safeRows =
       Array.isArray((config as any).rows)
         ? (config as any).rows.map((r: any) => ({
@@ -36,8 +37,18 @@ export class RoomCardEditor extends LitElement {
             entities: Array.isArray(r?.entities) ? [...r.entities] : [],
           }))
         : [];
-    const safeEntities = Array.isArray((config as any).entities) ? [...(config as any).entities] : [];
-    this._config = { ...(config as any), rows: safeRows, entities: safeEntities } as RoomCardConfig;
+
+    const safeInfo =
+      Array.isArray((config as any).info_entities)
+        ? (config as any).info_entities.map((e: any) => ({ ...e }))
+        : [];
+
+    this._config = {
+      ...(config as any),
+      rows: safeRows,
+      info_entities: safeInfo,
+    } as RoomCardConfig;
+
     this.requestUpdate();
   }
 
@@ -49,11 +60,12 @@ export class RoomCardEditor extends LitElement {
     this._config = { ...(this._config as any), [key]: value } as RoomCardConfig;
     this._emitChanged();
   }
+
   private _ensureRows() {
     if (!Array.isArray((this._config as any).rows)) (this._config as any).rows = [];
   }
-  private _ensureTopEntities() {
-    if (!Array.isArray((this._config as any).entities)) (this._config as any).entities = [];
+  private _ensureInfo() {
+    if (!Array.isArray((this._config as any).info_entities)) (this._config as any).info_entities = [];
   }
 
   // ----- rows -----
@@ -104,43 +116,55 @@ export class RoomCardEditor extends LitElement {
     this._emitChanged();
   };
 
-  // ----- top-level entities (Kompatibilität) -----
-  private _addEntity = () => {
-    this._ensureTopEntities();
-    const entities = [ ...(this._config as any).entities ];
-    entities.push({ entity: "", name: "", icon: "", show_icon: true, show_state: true });
-    (this._config as any).entities = entities;
+  // ----- info entities -----
+  private _addInfoEntity = () => {
+    this._ensureInfo();
+    const info = [ ...(this._config as any).info_entities ];
+    info.push({ entity: "", name: "", icon: "", show_icon: true, show_state: true });
+    (this._config as any).info_entities = info;
     this._emitChanged();
   };
-  private _removeEntity = (index: number) => {
-    this._ensureTopEntities();
-    const entities = [ ...(this._config as any).entities ];
-    entities.splice(index, 1);
-    (this._config as any).entities = entities;
+  private _removeInfoEntity = (index: number) => {
+    this._ensureInfo();
+    const info = [ ...(this._config as any).info_entities ];
+    info.splice(index, 1);
+    (this._config as any).info_entities = info;
     this._emitChanged();
   };
-  private _updateEntity = (index: number, key: string, value: any) => {
-    this._ensureTopEntities();
-    const entities = [ ...(this._config as any).entities ];
-    const ent = { ...(entities[index] || {}) };
+  private _updateInfoEntity = (index: number, key: string, value: any) => {
+    this._ensureInfo();
+    const info = [ ...(this._config as any).info_entities ];
+    const ent = { ...(info[index] || {}) };
     (ent as any)[key] = value;
-    entities[index] = ent;
-    (this._config as any).entities = entities;
+    info[index] = ent;
+    (this._config as any).info_entities = info;
     this._emitChanged();
   };
 
-  // ---------- UI-Bausteine mit Fallback ----------
+  // ---------- UI-Bausteine ----------
   private _TF(label: string, value: string, onInput: (v: string) => void) {
+    // Nur noch für Name/Icon-Fallbacks; Entity-Felder werden unten *immer* als Picker gerendert
     return has.textfield()
       ? html`<ha-textfield .value=${value ?? ""} label=${label} @input=${(e: any) => onInput(e.currentTarget.value)}></ha-textfield>`
       : html`<label class="lbl">${label}<input class="plain" .value=${value ?? ""} @input=${(e: any) => onInput(e.currentTarget.value)} /></label>`;
   }
+
+  // >>> Immer Entity-Picker (sichtbar), bei fehlendem hass disabled <<<
   private _EntityPicker(label: string, value: string, onChange: (v: string) => void) {
-    return this.hass && has.entityPicker()
-      ? html`<ha-entity-picker .hass=${this.hass} .value=${value ?? ""} allow-custom-entity label=${label}
-          @value-changed=${(e: any) => onChange(e.detail.value)}></ha-entity-picker>`
-      : this._TF(label + " (entity_id)", value, onChange);
+    if (has.entityPicker()) {
+      return html`<ha-entity-picker
+        .hass=${this.hass}
+        .value=${value ?? ""}
+        label=${label}
+        allow-custom-entity
+        ?disabled=${!this.hass}
+        @value-changed=${(e: any) => onChange(e.detail.value)}
+      ></ha-entity-picker>`;
+    }
+    // Falls sehr alte HA-Version ohne ha-entity-picker: minimaler Fallback
+    return this._TF(label + " (entity_id)", value, onChange);
   }
+
   private _IconPicker(value: string, onChange: (v: string) => void) {
     return has.iconPicker()
       ? html`<ha-icon-picker .value=${value ?? ""} label="Icon" @value-changed=${(e: any) => onChange(e.detail.value)}></ha-icon-picker>`
@@ -171,8 +195,15 @@ export class RoomCardEditor extends LitElement {
         <!-- Header -->
         <div class="section">
           <div class="section-title">Header</div>
-          <div class="field">${this._TF("Title", c.title ?? "", (v) => this._set("title", v))}</div>
-          <div class="toggles">${this._Switch("Hide title", !!c.hide_title, (v) => this._set("hide_title", v))}</div>
+          <div class="field">
+            ${this._TF("Title", c.title ?? "", (v) => this._set("title", v))}
+          </div>
+          <div class="field">
+            ${this._EntityPicker("Entity (required)", c.entity ?? "", (v) => this._set("entity", v))}
+          </div>
+          <div class="toggles">
+            ${this._Switch("Hide title", !!c.hide_title, (v) => this._set("hide_title", v))}
+          </div>
         </div>
 
         <!-- Rows -->
@@ -224,45 +255,37 @@ export class RoomCardEditor extends LitElement {
             : html`<div class="hint">No rows yet. Click “Add row”.</div>`}
         </div>
 
-        <!-- Top-level Entities (Kompatibilität) -->
+        <!-- Info entities -->
         <div class="section">
           <div class="section-title">
-            Entities (top level)
-            ${this._Btn("Add entity", this._addEntity)}
+            Info entities
+            ${this._Btn("Add entity", this._addInfoEntity)}
           </div>
 
-          ${Array.isArray(c.entities) && c.entities.length
-            ? c.entities.map(
+          ${Array.isArray(c.info_entities) && c.info_entities.length
+            ? c.info_entities.map(
                 (ent: any, i: number) => html`
                   <div class="entity-block">
                     <div class="field">
-                      ${this._EntityPicker("Entity", ent.entity ?? "", (v) => this._updateEntity(i, "entity", v))}
+                      ${this._EntityPicker("Entity", ent.entity ?? "", (v) => this._updateInfoEntity(i, "entity", v))}
                     </div>
                     <div class="field">
-                      ${this._TF("Name (optional)", ent.name ?? "", (v) => this._updateEntity(i, "name", v))}
+                      ${this._TF("Name (optional)", ent.name ?? "", (v) => this._updateInfoEntity(i, "name", v))}
                     </div>
                     <div class="field">
-                      ${this._IconPicker(ent.icon ?? "", (v) => this._updateEntity(i, "icon", v))}
+                      ${this._IconPicker(ent.icon ?? "", (v) => this._updateInfoEntity(i, "icon", v))}
                     </div>
                     <div class="toggles">
-                      ${this._Switch("Show icon", ent.show_icon !== false, (v) => this._updateEntity(i, "show_icon", v))}
-                      ${this._Switch("Show state", ent.show_state !== false, (v) => this._updateEntity(i, "show_state", v))}
+                      ${this._Switch("Show icon", ent.show_icon !== false, (v) => this._updateInfoEntity(i, "show_icon", v))}
+                      ${this._Switch("Show state", ent.show_state !== false, (v) => this._updateInfoEntity(i, "show_state", v))}
                     </div>
                     <div class="actions">
-                      ${this._Btn("Remove", () => this._removeEntity(i), "danger")}
+                      ${this._Btn("Remove", () => this._removeInfoEntity(i), "danger")}
                     </div>
                   </div>
                 `,
               )
-            : html`<div class="hint">No top-level entities. Prefer using Rows above.</div>`}
-        </div>
-
-        <!-- Advanced -->
-        <div class="section">
-          <div class="section-title">Advanced</div>
-          <div class="field">
-            ${this._EntityPicker("Primary entity (optional)", c.entity ?? "", (v) => this._set("entity", v))}
-          </div>
+            : html`<div class="hint">No info entities. Click “Add entity”.</div>`}
         </div>
       </div>
     `;
@@ -270,7 +293,6 @@ export class RoomCardEditor extends LitElement {
 
   static styles = css`
     :host { display:block; box-sizing:border-box; padding:4px 0 8px; }
-    /* Verhindert, dass der Editor die Vorschau überlappt */
     .form { display:grid; gap:16px; width:100%; max-width:560px; overflow:hidden; }
 
     .section { display:grid; gap:12px; padding:8px 0; border-top:1px solid var(--divider-color, #e0e0e0); }
@@ -281,7 +303,6 @@ export class RoomCardEditor extends LitElement {
     .row-header { display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; }
     .row-actions { display:flex; gap:8px; flex-wrap:wrap; }
 
-    /* Vertikales Layout pro Entity */
     .entity-block { display:grid; grid-template-columns: 1fr; gap:10px; padding:8px; border:1px dashed var(--divider-color,#ddd); border-radius:8px; }
     .field { min-width:0; }
     ha-textfield, ha-entity-picker, ha-icon-picker { width:100%; }
@@ -290,7 +311,7 @@ export class RoomCardEditor extends LitElement {
 
     .hint { opacity:.7; font-style:italic; }
     .lbl { display:grid; gap:6px; font-size:.9rem; }
-    input.plain { width:100%; padding:8px; border:1px solid var(--divider-color,#ddd); border-radius:6px; background:var(--card-background-color,#fff); color:var(--primary-text-color); }
+    input.plain { width:100%; padding:8px; border:1px solid var(--divider-color,#ddd); border-radius:6px; background:var(--card-background-color,#fff); color: var(--primary-text-color); }
 
     .plain-btn { padding:6px 10px; border-radius:8px; border:1px solid var(--divider-color,#ccc); background: var(--secondary-background-color,#f6f6f6); cursor:pointer; }
     .plain-btn.ghost { background:transparent; }
