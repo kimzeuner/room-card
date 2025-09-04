@@ -165,18 +165,25 @@ export class RoomCardEditor extends LitElement {
 
   private _EntityPicker(label: string, value: string, onChange: (v: string) => void) {
     if (has.entityPicker()) {
-      // Echter HA-Entity-Picker
+      // Echter HA-Entity-Picker: Breite & Overlay direkt am Element erzwingen
       return html`<ha-entity-picker
         .hass=${this.hass}
         .value=${value ?? ""}
         label=${label}
         allow-custom-entity
         ?disabled=${!this.hass}
+        style="
+          width:100%;
+          display:block;
+          /* Menü/Overlay soll so breit sein wie das Feld und UNTER dem Feld öffnen */
+          --mdc-menu-min-width: 100%;             /* MWC-Menüs (neuere HA) */
+          --vaadin-combo-box-overlay-width: 100%; /* Vaadin-Menüs (ältere HA) */
+        "
         @value-changed=${(e: any) => onChange(e.detail.value)}
       ></ha-entity-picker>`;
     }
-
-    // Fallback: Input + datalist mit allen bekannten Entities
+  
+    // Fallback: Input + datalist
     const listId = `rc-entities-${++_datalistCounter}`;
     const entities = Object.keys(this.hass?.states ?? {}).sort();
     return html`
@@ -188,6 +195,7 @@ export class RoomCardEditor extends LitElement {
           .value=${value ?? ""}
           @input=${(e: any) => onChange(e.currentTarget.value)}
           placeholder="sensor.xyz, switch.xyz, …"
+          style="width:100%;"
         />
       </label>
       <datalist id=${listId}>
@@ -195,6 +203,7 @@ export class RoomCardEditor extends LitElement {
       </datalist>
     `;
   }
+
 
   private _IconPicker(value: string, onChange: (v: string) => void) {
     return has.iconPicker()
