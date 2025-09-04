@@ -359,8 +359,15 @@ export class RoomCardEditor extends LitElement {
 
   static styles = css`
     :host { display:block; box-sizing:border-box; padding:4px 0 8px; }
-    /* Breite begrenzen, aber Dropdowns nicht mehr abschneiden */
-    .form { display:grid; gap:16px; width:100%; max-width:560px; overflow:visible; }
+  
+    /* Editorbreite begrenzen, aber Overlays NICHT abschneiden */
+    .form {
+      display: grid;
+      gap: 16px;
+      width: 100%;
+      max-width: 560px;
+      overflow: visible;            /* <- wichtig für Menüs */
+    }
   
     .section { display:grid; gap:12px; padding:8px 0; border-top:1px solid var(--divider-color, #e0e0e0); }
     .section:first-child { border-top:none; }
@@ -370,11 +377,11 @@ export class RoomCardEditor extends LitElement {
     .row-header { display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; }
     .row-actions { display:flex; gap:8px; flex-wrap:wrap; }
   
-    /* JEDES Feld darf überlaufen (für Dropdown-Overlays) */
+    /* Jedes Feld darf Overlays anzeigen */
     .entity-block { display:grid; grid-template-columns: 1fr; gap:10px; padding:8px; border:1px dashed var(--divider-color,#ddd); border-radius:8px; overflow:visible; }
-    .field { min-width:0; overflow:visible; }
+    .field { min-width:0; overflow:visible; position:relative; }
   
-    /* Breiten/Box-Sizing erzwingen, damit Chevron sichtbar bleibt */
+    /* Eingabeelemente auf volle Breite + korrektes Box-Sizing */
     ha-entity-picker,
     ha-icon-picker,
     ha-textfield,
@@ -385,10 +392,12 @@ export class RoomCardEditor extends LitElement {
       display: block;
     }
   
-    /* Menü unter dem Feld öffnen & gleiche Breite wie das Feld (mwc menu) */
+    /* Menüs gleich breit wie das Feld + unter dem Feld öffnen */
     ha-entity-picker,
     ha-icon-picker {
-      --mdc-menu-min-width: 100%;
+      --mdc-menu-min-width: 100%;             /* MWC-Menüs */
+      --vaadin-combo-box-overlay-width: 100%; /* Vaadin (ältere HA) */
+      --ha-combo-box-overlay-width: 100%;     /* HA-Combo-Box (Fallback) */
     }
   
     /* HA-Toggles & Buttons */
@@ -405,6 +414,7 @@ export class RoomCardEditor extends LitElement {
   
     mwc-button.danger { --mdc-theme-primary: var(--error-color, #d32f2f); }
   `;
+
 
 }
 
