@@ -59,22 +59,11 @@ export class RoomCardEditor extends LitElement {
     this.requestUpdate();
   }
 
-  private _isBuggyPicker(): boolean {
-    // HA 2025.9.x: Menüposition im Dialog/Grid fehlerhaft
-    const v = this.hass?.config?.version ?? "";
-    const m = v.match(/^(\d+)\.(\d+)\.(\d+)/);
-    if (!m) return false;
-    const major = Number(m[1]);
-    const minor = Number(m[2]);
-    return major === 2025 && minor >= 9; // ab 2025.9.* Fallback erzwingen
-  }
-
-
-  
   // ---------- helpers ----------
   private _emitChanged() {
     this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: this._config } }));
   }
+
   private _set<K extends keyof RoomCardConfig>(key: K, value: RoomCardConfig[K]) {
     this._config = { ...(this._config as any), [key]: value } as RoomCardConfig;
     this._emitChanged();
@@ -87,6 +76,16 @@ export class RoomCardEditor extends LitElement {
     if (!Array.isArray((this._config as any).info_entities)) (this._config as any).info_entities = [];
   }
 
+  // Home Assistant 2025.9.x: Overlay-Position im Dialog zickt -> Fallback erzwingen
+  private _isBuggyPicker(): boolean {
+    const v = this.hass?.config?.version ?? "";
+    const m = v.match(/^(\d+)\.(\d+)\.(\d+)/);
+    if (!m) return false;
+    const major = Number(m[1]);
+    const minor = Number(m[2]);
+    return major === 2025 && minor >= 9; // ab 2025.9.*
+  }
+
   // ----- rows -----
   private _addRow = () => {
     this._ensureRows();
@@ -95,6 +94,7 @@ export class RoomCardEditor extends LitElement {
     (this._config as any).rows = rows;
     this._emitChanged();
   };
+
   private _removeRow = (rowIndex: number) => {
     this._ensureRows();
     const rows = [...(this._config as any).rows];
@@ -102,6 +102,7 @@ export class RoomCardEditor extends LitElement {
     (this._config as any).rows = rows;
     this._emitChanged();
   };
+
   private _addRowEntity = (rowIndex: number) => {
     this._ensureRows();
     const rows = [...(this._config as any).rows];
@@ -112,6 +113,7 @@ export class RoomCardEditor extends LitElement {
     (this._config as any).rows = rows;
     this._emitChanged();
   };
+
   private _removeRowEntity = (rowIndex: number, entIndex: number) => {
     this._ensureRows();
     const rows = [...(this._config as any).rows];
@@ -122,6 +124,7 @@ export class RoomCardEditor extends LitElement {
     (this._config as any).rows = rows;
     this._emitChanged();
   };
+
   private _updateRowEntity = (rowIndex: number, entIndex: number, key: string, value: any) => {
     this._ensureRows();
     const rows = [...(this._config as any).rows];
@@ -143,6 +146,7 @@ export class RoomCardEditor extends LitElement {
     (this._config as any).info_entities = info;
     this._emitChanged();
   };
+
   private _removeInfoEntity = (index: number) => {
     this._ensureInfo();
     const info = [...(this._config as any).info_entities];
@@ -150,6 +154,7 @@ export class RoomCardEditor extends LitElement {
     (this._config as any).info_entities = info;
     this._emitChanged();
   };
+
   private _updateInfoEntity = (index: number, key: string, value: any) => {
     this._ensureInfo();
     const info = [...(this._config as any).info_entities];
@@ -169,17 +174,17 @@ export class RoomCardEditor extends LitElement {
           label=${label}
           @input=${(e: any) => onInput(e.currentTarget.value)}
         ></ha-textfield>`
-      : html`<label class="lbl"
-          >${label}
+      : html`<label class="lbl">
+          ${label}
           <input class="plain" .value=${value ?? ""} @input=${(e: any) => onInput(e.currentTarget.value)} />
         </label>`;
   }
 
   private _EntityPicker(label: string, value: string, onChange: (v: string) => void) {
     const useFallback = this._isBuggyPicker();
-  
+
     if (has.entityPicker() && !useFallback) {
-      // Normaler Picker (wenn Version OK)
+      // Echter HA-Entity-Picker (wenn Version OK)
       return html`
         <div class="picker-anchor">
           <ha-entity-picker
@@ -202,8 +207,8 @@ export class RoomCardEditor extends LitElement {
         </div>
       `;
     }
-  
-    // Fallback: native datalist (öffnet immer unter dem Feld, ohne Overlay-Bugs)
+
+    // Fallback: native datalist (öffnet stabil unter dem Feld)
     const listId = `rc-entities-${++_datalistCounter}`;
     const entities = Object.keys(this.hass?.states ?? {}).sort();
     return html`
@@ -225,31 +230,6 @@ export class RoomCardEditor extends LitElement {
       </div>
     `;
   }
-
-  
-    // Fallback: Input + datalist
-    const listId = `rc-entities-${++_datalistCounter}`;
-    const entities = Object.keys(this.hass?.states ?? {}).sort();
-    return html`
-      <div class="picker-anchor">
-        <label class="lbl">
-          ${label}
-          <input
-            class="plain"
-            list=${listId}
-            .value=${value ?? ""}
-            @input=${(e: any) => onChange(e.currentTarget.value)}
-            placeholder="sensor.xyz, switch.xyz, …"
-            style="width:100%;"
-          />
-        </label>
-        <datalist id=${listId}>
-          ${entities.map((eid) => html`<option value=${eid}></option>`)}
-        </datalist>
-      </div>
-    `;
-  }
-
 
   private _IconPicker(value: string, onChange: (v: string) => void) {
     return has.iconPicker()
@@ -264,16 +244,16 @@ export class RoomCardEditor extends LitElement {
   private _Switch(label: string, checked: boolean, onChange: (v: boolean) => void) {
     if (has.haSwitch() && has.haFormfield()) {
       return html`<ha-formfield label=${label}
-        ><ha-switch .checked=${!!checked} @change=${(e: any) => onChange(!!e.currentTarget.checked)}></ha-switch
+        ><ha-switch .checked=${!!checked} @change=${(e: any) => onChange(!!(e.currentTarget as any).checked)}></ha-switch
       ></ha-formfield>`;
     }
     if (has.mwcSwitch() && has.mwcFormfield()) {
       return html`<mwc-formfield label=${label}
-        ><mwc-switch .checked=${!!checked} @change=${(e: any) => onChange(!!e.currentTarget.checked)}></mwc-switch
+        ><mwc-switch .checked=${!!checked} @change=${(e: any) => onChange(!!(e.currentTarget as any).checked)}></mwc-switch
       ></mwc-formfield>`;
     }
     return html`<label class="lbl"
-      ><input type="checkbox" .checked=${!!checked} @change=${(e: any) => onChange(!!e.currentTarget.checked)} />
+      ><input type="checkbox" .checked=${!!checked} @change=${(e: any) => onChange(!!(e.currentTarget as any).checked)} />
       ${label}</label
     >`;
   }
@@ -415,33 +395,30 @@ export class RoomCardEditor extends LitElement {
   static styles = css`
     :host { display:block; box-sizing:border-box; padding:4px 0 8px; }
 
-    /* Stabile Ankerbox für Overlays */
-    .picker-anchor {
-      position: relative;
-      overflow: visible;  /* Overlay darf 'aus dem Feld heraus' zeichnen */
-      width: 100%;
-    }
     /* Editorbreite begrenzen, aber Overlays NICHT abschneiden */
     .form {
       display: grid;
       gap: 16px;
       width: 100%;
       max-width: 560px;
-      overflow: visible;            /* <- wichtig für Menüs */
+      overflow: visible; /* wichtig für Menüs */
     }
-  
+
     .section { display:grid; gap:12px; padding:8px 0; border-top:1px solid var(--divider-color, #e0e0e0); }
     .section:first-child { border-top:none; }
     .section-title { display:flex; align-items:center; justify-content:space-between; gap:12px; font-weight:600; flex-wrap:wrap; }
-  
+
     .row-card { border:1px solid var(--divider-color, #e0e0e0); border-radius:10px; padding:10px; display:grid; gap:12px; }
     .row-header { display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; }
     .row-actions { display:flex; gap:8px; flex-wrap:wrap; }
-  
+
     /* Jedes Feld darf Overlays anzeigen */
     .entity-block { display:grid; grid-template-columns: 1fr; gap:10px; padding:8px; border:1px dashed var(--divider-color,#ddd); border-radius:8px; overflow:visible; }
     .field { min-width:0; overflow:visible; position:relative; }
-  
+
+    /* Stabile Ankerbox für Overlays/Fallback */
+    .picker-anchor { position: relative; overflow: visible; width: 100%; }
+
     /* Eingabeelemente auf volle Breite + korrektes Box-Sizing */
     ha-entity-picker,
     ha-icon-picker,
@@ -452,46 +429,27 @@ export class RoomCardEditor extends LitElement {
       box-sizing: border-box;
       display: block;
     }
-    /* Volle Breite & korrektes Sizing – wichtig für Chevron und Breitenmessung */
-    ha-entity-picker,
-    ha-icon-picker,
-    ha-textfield {
-      width: 100%;
-      max-width: 100%;
-      box-sizing: border-box;
-      display: block;
-    }
-  
-    /* Menüs gleich breit wie das Feld + unter dem Feld öffnen */
-    ha-entity-picker,
-    ha-icon-picker {
-      --mdc-menu-min-width: 100%;             /* MWC-Menüs */
-      --vaadin-combo-box-overlay-width: 100%; /* Vaadin (ältere HA) */
-      --ha-combo-box-overlay-width: 100%;     /* HA-Combo-Box (Fallback) */
-    }
-    
-    /* Menü gleich breit wie das Feld (nochmals per Selektor abgesichert) */
+
+    /* Menüs gleich breit wie das Feld (wirksam bei nicht-buggy Versionen) */
     ha-entity-picker {
       --mdc-menu-min-width: 100%;
       --vaadin-combo-box-overlay-width: 100%;
     }
-  
+
     /* HA-Toggles & Buttons */
     .toggles { display:grid; gap:8px; align-content:start; }
     .actions { display:flex; gap:8px; justify-content:flex-end; }
-  
+
     .hint { opacity:.7; font-style:italic; }
     .lbl { display:grid; gap:6px; font-size:.9rem; }
     input.plain { width:100%; padding:8px; border:1px solid var(--divider-color,#ddd); border-radius:6px; background:var(--card-background-color,#fff); color: var(--primary-text-color); }
-  
+
     .plain-btn { padding:6px 10px; border-radius:8px; border:1px solid var(--divider-color,#ccc); background: var(--secondary-background-color,#f6f6f6); cursor:pointer; }
     .plain-btn.ghost { background:transparent; }
     .plain-btn.danger { border-color: var(--error-color,#d32f2f); color: var(--error-color,#d32f2f); }
-  
+
     mwc-button.danger { --mdc-theme-primary: var(--error-color, #d32f2f); }
   `;
-
-
 }
 
 // doppelte Registrierung vermeiden
