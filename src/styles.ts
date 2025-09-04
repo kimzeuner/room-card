@@ -87,35 +87,46 @@ export const style = css`
     .content-right {
         justify-content: right;
     }
-        /* --- Header alignment fix --- */
+    /* --- Header vertical alignment fix --- */
+    
+    /* Gesamter Header als Flex-Zeile */
     :host .card-header {
       display: flex;
-      align-items: center;   /* vertikal zentrieren */
-      gap: 12px;             /* angenehmer Abstand */
+      align-items: center;          /* vertikal zentriert */
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 40px;             /* stabile Zeilenhöhe */
     }
     
-    /* Container, der Icon + Text enthält (breit gefasst, falls unterschiedliche Klassennamen) */
-    :host .card-header .title,
-    :host .card-header .title-row,
-    :host .card-header .rc-title,
-    :host .card-header .name,
-    :host .card-header h1,
-    :host .card-header h2 {
+    /* Der erste Block im Header ist das Ergebnis von renderTitle(...).
+       Wir zwingen ihn zu einem Flex-Container, damit Icon + Text sauber zentrieren. */
+    :host .card-header > *:first-child {
       display: flex;
-      align-items: center;   /* Icon und Text auf gleiche Höhe */
+      align-items: center;          /* Icon + Text auf eine Höhe */
       gap: 8px;
+      min-height: 32px;
+    }
+    
+    /* Häufige Titel-Elemente (falls vorhanden) ebenfalls flexen */
+    :host .card-header > *:first-child .title,
+    :host .card-header > *:first-child .name,
+    :host .card-header > *:first-child h1,
+    :host .card-header > *:first-child h2 {
+      display: flex;
+      align-items: center;
       margin: 0;
       line-height: 1.2;
     }
     
-    /* Icons/Badges im Header wirklich mittig in ihrer Box */
-    :host .card-header state-badge,
-    :host .card-header ha-state-icon,
-    :host .card-header ha-icon {
+    /* Badges/Icons wirklich zentriert darstellen */
+    :host .card-header > *:first-child state-badge,
+    :host .card-header > *:first-child ha-state-icon,
+    :host .card-header > *:first-child ha-icon {
       display: inline-flex;
       align-items: center;
       justify-content: center;
       vertical-align: middle;
     }
+
 
 `;
