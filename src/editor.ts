@@ -165,42 +165,55 @@ export class RoomCardEditor extends LitElement {
 
   private _EntityPicker(label: string, value: string, onChange: (v: string) => void) {
     if (has.entityPicker()) {
-      // Echter HA-Entity-Picker: Breite & Overlay direkt am Element erzwingen
-      return html`<ha-entity-picker
-        .hass=${this.hass}
-        .value=${value ?? ""}
-        label=${label}
-        allow-custom-entity
-        ?disabled=${!this.hass}
-        style="
-          width:100%;
-          display:block;
-          /* Menü/Overlay soll so breit sein wie das Feld und UNTER dem Feld öffnen */
-          --mdc-menu-min-width: 100%;             /* MWC-Menüs (neuere HA) */
-          --vaadin-combo-box-overlay-width: 100%; /* Vaadin-Menüs (ältere HA) */
-        "
-        @value-changed=${(e: any) => onChange(e.detail.value)}
-      ></ha-entity-picker>`;
+      // Stabiler Anker-Wrapper – hilft Grids/Dialogs bei der Koordinatenberechnung
+      return html`
+        <div class="picker-anchor">
+          <ha-entity-picker
+            .hass=${this.hass}
+            .value=${value ?? ""}
+            label=${label}
+            allow-custom-entity
+            ?disabled=${!this.hass}
+            style="
+              width:100%;
+              display:block;
+  
+              /* Breite des Overlays an Eingabefeld koppeln (MWC & Vaadin) */
+              --mdc-menu-min-width: 100%;
+              --vaadin-combo-box-overlay-width: 100%;
+  
+              /* Falls MWC verwendet wird: erzwinge 'fixed' Positionierung (verhindert seitliches Wegspringen in Dialogen) */
+              --mwc-menu-surface-fixed: true;
+  
+              /* kleine vertikale Distanz unter dem Feld */
+              --mdc-menu-surface-vertical-offset: 2px;
+            "
+            @value-changed=${(e: any) => onChange(e.detail.value)}
+          ></ha-entity-picker>
+        </div>
+      `;
     }
   
     // Fallback: Input + datalist
     const listId = `rc-entities-${++_datalistCounter}`;
     const entities = Object.keys(this.hass?.states ?? {}).sort();
     return html`
-      <label class="lbl">
-        ${label}
-        <input
-          class="plain"
-          list=${listId}
-          .value=${value ?? ""}
-          @input=${(e: any) => onChange(e.currentTarget.value)}
-          placeholder="sensor.xyz, switch.xyz, …"
-          style="width:100%;"
-        />
-      </label>
-      <datalist id=${listId}>
-        ${entities.map((eid) => html`<option value=${eid}></option>`)}
-      </datalist>
+      <div class="picker-anchor">
+        <label class="lbl">
+          ${label}
+          <input
+            class="plain"
+            list=${listId}
+            .value=${value ?? ""}
+            @input=${(e: any) => onChange(e.currentTarget.value)}
+            placeholder="sensor.xyz, switch.xyz, …"
+            style="width:100%;"
+          />
+        </label>
+        <datalist id=${listId}>
+          ${entities.map((eid) => html`<option value=${eid}></option>`)}
+        </datalist>
+      </div>
     `;
   }
 
@@ -368,7 +381,13 @@ export class RoomCardEditor extends LitElement {
 
   static styles = css`
     :host { display:block; box-sizing:border-box; padding:4px 0 8px; }
-  
+
+    /* Stabile Ankerbox für Overlays */
+    .picker-anchor {
+      position: relative;
+      overflow: visible;  /* Overlay darf 'aus dem Feld heraus' zeichnen */
+      width: 100%;
+    }
     /* Editorbreite begrenzen, aber Overlays NICHT abschneiden */
     .form {
       display: grid;
@@ -400,6 +419,15 @@ export class RoomCardEditor extends LitElement {
       box-sizing: border-box;
       display: block;
     }
+    /* Volle Breite & korrektes Sizing – wichtig für Chevron und Breitenmessung */
+    ha-entity-picker,
+    ha-icon-picker,
+    ha-textfield {
+      width: 100%;
+      max-width: 100%;
+      box-sizing: border-box;
+      display: block;
+    }
   
     /* Menüs gleich breit wie das Feld + unter dem Feld öffnen */
     ha-entity-picker,
@@ -407,6 +435,12 @@ export class RoomCardEditor extends LitElement {
       --mdc-menu-min-width: 100%;             /* MWC-Menüs */
       --vaadin-combo-box-overlay-width: 100%; /* Vaadin (ältere HA) */
       --ha-combo-box-overlay-width: 100%;     /* HA-Combo-Box (Fallback) */
+    }
+    
+    /* Menü gleich breit wie das Feld (nochmals per Selektor abgesichert) */
+    ha-entity-picker {
+      --mdc-menu-min-width: 100%;
+      --vaadin-combo-box-overlay-width: 100%;
     }
   
     /* HA-Toggles & Buttons */
