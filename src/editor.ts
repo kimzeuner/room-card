@@ -1,11 +1,17 @@
-import { css, html, LitElement, PropertyValues, TemplateResult } from "lit";
+import { css, html, LitElement, TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import type { HomeAssistant } from "custom-card-helpers";
 import type { RoomCardConfig } from "./types/room-card-types";
 
 console.info("ROOM-CARD-EDITOR: module loaded");
 
-const hasIconPicker = () => !!customElements.get("ha-icon-picker");
+// Feature-Checks (zur Laufzeit)
+const has = {
+  textfield: () => !!customElements.get("ha-textfield"),
+  entityPicker: () => !!customElements.get("ha-entity-picker"),
+  iconPicker: () => !!customElements.get("ha-icon-picker"),
+  mwcSwitch: () => !!customElements.get("mwc-switch"),
+};
 
 @customElement("room-card-editor")
 export class RoomCardEditor extends LitElement {
@@ -31,11 +37,7 @@ export class RoomCardEditor extends LitElement {
     this.requestUpdate();
   }
 
-  protected shouldUpdate(changed: PropertyValues): boolean {
-    return changed.size > 0;
-  }
-
-  // ---- Helpers ----
+  // ---------- Helpers ----------
   private _emitChanged() {
     this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: this._config } }));
   }
@@ -78,33 +80,71 @@ export class RoomCardEditor extends LitElement {
     this._emitChanged();
   };
 
-  // ---- Render (ohne hass NIE leer!) ----
+  // ---------- UI Bausteine mit Fallbacks ----------
+  private _TF(label: string, value: string, onInput: (v: string) => void) {
+    return has.textfield()
+      ? html`<ha-textfield
+          .value=${value ?? ""}
+          label=${label}
+          @input=${(e: any) => onInput(e.currentTarget.value)}
+        ></ha-textfield>`
+      : html`<label class="lbl"
+          >${label}
+          <input class="plain" .value=${value ?? ""} @input=${(e: any) => onInput(e.currentTarget.value)} />
+        </label>`;
+  }
+
+  private _EntityPicker(label: string, value: string, onChange: (v: string) => void) {
+    // Nur sinnvoll mit hass UND wenn die Komponente existiert
+    return this.hass && has.entityPicker()
+      ? html`<ha-entity-picker
+          .hass=${this.hass}
+          .value=${value ?? ""}
+          allow-custom-entity
+          label=${label}
+          @value-changed=${(e: any) => onChange(e.detail.value)}
+        ></ha-entity-picker>`
+      : this._TF(label + " (entity_id)", value, onChange);
+  }
+
+  private _IconPicker(value: string, onChange: (v: string) => void) {
+    return has.iconPicker()
+      ? html`<ha-icon-picker
+          .value=${value ?? ""}
+          label="Icon"
+          @value-changed=${(e: any) => onChange(e.detail.value)}
+        ></ha-icon-picker>`
+      : this._TF("Icon (mdi:…)", value, onChange);
+  }
+
+  private _Switch(label: string, checked: boolean, onChange: (v: boolean) => void) {
+    return has.mwcSwitch()
+      ? html`<mwc-formfield label=${label}>
+          <mwc-switch .checked=${!!checked} @change=${(e: any) => onChange(e.currentTarget.checked)}></mwc-switch>
+        </mwc-formfield>`
+      : html`<label class="lbl"
+          ><input
+            type="checkbox"
+            .checked=${!!checked}
+            @change=${(e: any) => onChange(e.currentTarget.checked)}
+          />
+          ${label}
+        </label>`;
+  }
+
+  // ---------- Render (immer sichtbar, egal ob hass gesetzt ist) ----------
   protected render(): TemplateResult {
     if (!this._config) {
-      // Minimaler Fallback, bis setConfig kommt
-      return html`<div class="hint" style="padding:8px;opacity:.7">Loading editor…</div>`;
+      return html`<div class="hint">Loading editor…</div>`;
     }
-
     const c = this._config;
-    const hasHass = !!this.hass;
 
     return html`
       <div class="form">
         <div class="section">
           <div class="section-title">Header</div>
-
-          <ha-textfield
-            .value=${c.title ?? ""}
-            label="Title"
-            @input=${(e: any) => this._set("title", e.currentTarget.value)}
-          ></ha-textfield>
-
-          <mwc-formfield label="Hide title">
-            <mwc-switch
-              .checked=${!!c.hide_title}
-              @change=${(e: any) => this._set("hide_title", e.currentTarget.checked)}
-            ></mwc-switch>
-          </mwc-formfield>
+          ${this._TF("Title", c.title ?? "", (v) => this._set("title", v))}
+          ${this._Switch("Hide title", !!c.hide_title, (v) => this._set("hide_title", v))}
         </div>
 
         <div class="section">
@@ -117,47 +157,13 @@ export class RoomCardEditor extends LitElement {
             ? c.entities.map(
                 (ent: any, i: number) => html`
                   <div class="entity-row">
-                    ${hasHass
-                      ? html`
-                          <ha-entity-picker
-                            .hass=${this.hass}
-                            .value=${ent.entity ?? ""}
-                            allow-custom-entity
-                            label="Entity"
-                            @value-changed=${(ev: any) => this._updateEntity(i, "entity", ev.detail.value)}
-                          ></ha-entity-picker>
-                        `
-                      : html`
-                          <ha-textfield
-                            .value=${ent.entity ?? ""}
-                            label="Entity (entity_id)"
-                            @input=${(ev: any) => this._updateEntity(i, "entity", ev.currentTarget.value)}
-                          ></ha-textfield>
-                        `}
-
-                    ${hasIconPicker()
-                      ? html`
-                          <ha-icon-picker
-                            .value=${ent.icon ?? ""}
-                            label="Icon"
-                            @value-changed=${(ev: any) => this._updateEntity(i, "icon", ev.detail.value)}
-                          ></ha-icon-picker>
-                        `
-                      : html`
-                          <ha-textfield
-                            .value=${ent.icon ?? ""}
-                            label="Icon (mdi:…)"
-                            @input=${(ev: any) => this._updateEntity(i, "icon", ev.currentTarget.value)}
-                          ></ha-textfield>
-                        `}
-
-                    <mwc-formfield label="Show icon">
-                      <mwc-switch
-                        .checked=${ent.show_icon !== false}
-                        @change=${(ev: any) => this._updateEntity(i, "show_icon", ev.currentTarget.checked)}
-                      ></mwc-switch>
-                    </mwc-formfield>
-
+                    ${this._EntityPicker("Entity", ent.entity ?? "", (v) => this._updateEntity(i, "entity", v))}
+                    ${this._IconPicker(ent.icon ?? "", (v) => this._updateEntity(i, "icon", v))}
+                    ${this._Switch(
+                      "Show icon",
+                      ent.show_icon !== false,
+                      (v) => this._updateEntity(i, "show_icon", v),
+                    )}
                     <mwc-button dense class="danger" @click=${() => this._removeEntity(i)}>Remove</mwc-button>
                   </div>
                 `,
@@ -167,37 +173,62 @@ export class RoomCardEditor extends LitElement {
 
         <div class="section">
           <div class="section-title">Advanced</div>
-
-          ${hasHass
-            ? html`
-                <ha-entity-picker
-                  .hass=${this.hass}
-                  .value=${c.entity ?? ""}
-                  allow-custom-entity
-                  label="Primary entity (optional)"
-                  @value-changed=${(e: any) => this._set("entity", e.detail.value)}
-                ></ha-entity-picker>
-              `
-            : html`
-                <ha-textfield
-                  .value=${c.entity ?? ""}
-                  label="Primary entity (optional)"
-                  @input=${(e: any) => this._set("entity", e.currentTarget.value)}
-                ></ha-textfield>
-              `}
+          ${this._EntityPicker("Primary entity (optional)", c.entity ?? "", (v) => this._set("entity", v))}
         </div>
       </div>
     `;
   }
 
   static styles = css`
-    .form { display: grid; gap: 16px; }
-    .section { display: grid; gap: 12px; padding: 8px 0; border-top: 1px solid var(--divider-color, #e0e0e0); }
-    .section:first-child { border-top: none; }
-    .section-title { display: flex; align-items: center; justify-content: space-between; font-weight: 600; }
-    .entity-row { display: grid; grid-template-columns: 1fr 180px auto auto; align-items: center; gap: 12px; }
-    .hint { opacity: .7; font-style: italic; }
-    mwc-button.danger { --mdc-theme-primary: var(--error-color, #d32f2f); }
+    :host {
+      display: block;
+      box-sizing: border-box;
+      padding: 4px 0 8px;
+    }
+    .form {
+      display: grid;
+      gap: 16px;
+    }
+    .section {
+      display: grid;
+      gap: 12px;
+      padding: 8px 0;
+      border-top: 1px solid var(--divider-color, #e0e0e0);
+    }
+    .section:first-child {
+      border-top: none;
+    }
+    .section-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-weight: 600;
+    }
+    .entity-row {
+      display: grid;
+      grid-template-columns: 1fr 180px auto auto;
+      align-items: center;
+      gap: 12px;
+    }
+    .hint {
+      opacity: 0.7;
+      font-style: italic;
+    }
+    .lbl {
+      display: grid;
+      gap: 6px;
+      font-size: 0.9rem;
+    }
+    input.plain {
+      padding: 8px;
+      border: 1px solid var(--divider-color, #ddd);
+      border-radius: 6px;
+      background: var(--card-background-color, #fff);
+      color: var(--primary-text-color);
+    }
+    mwc-button.danger {
+      --mdc-theme-primary: var(--error-color, #d32f2f);
+    }
   `;
 }
 
