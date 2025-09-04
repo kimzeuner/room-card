@@ -143,13 +143,13 @@ export class RoomCardEditor extends LitElement {
 
   // ---------- UI-Bausteine ----------
   private _TF(label: string, value: string, onInput: (v: string) => void) {
-    // Nur noch für Name/Icon-Fallbacks; Entity-Felder werden unten *immer* als Picker gerendert
+    // Textfelder (Name/Icon-Fallbacks)
     return has.textfield()
       ? html`<ha-textfield .value=${value ?? ""} label=${label} @input=${(e: any) => onInput(e.currentTarget.value)}></ha-textfield>`
       : html`<label class="lbl">${label}<input class="plain" .value=${value ?? ""} @input=${(e: any) => onInput(e.currentTarget.value)} /></label>`;
   }
 
-  // >>> Immer Entity-Picker (sichtbar), bei fehlendem hass disabled <<<
+  // Immer Entity-Picker; ohne hass disabled (sichtbar)
   private _EntityPicker(label: string, value: string, onChange: (v: string) => void) {
     if (has.entityPicker()) {
       return html`<ha-entity-picker
@@ -161,7 +161,6 @@ export class RoomCardEditor extends LitElement {
         @value-changed=${(e: any) => onChange(e.detail.value)}
       ></ha-entity-picker>`;
     }
-    // Falls sehr alte HA-Version ohne ha-entity-picker: minimaler Fallback
     return this._TF(label + " (entity_id)", value, onChange);
   }
 
@@ -293,6 +292,7 @@ export class RoomCardEditor extends LitElement {
 
   static styles = css`
     :host { display:block; box-sizing:border-box; padding:4px 0 8px; }
+    /* Editorbreite begrenzen, damit er nicht in die Vorschau ragt */
     .form { display:grid; gap:16px; width:100%; max-width:560px; overflow:hidden; }
 
     .section { display:grid; gap:12px; padding:8px 0; border-top:1px solid var(--divider-color, #e0e0e0); }
