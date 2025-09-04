@@ -203,6 +203,7 @@
       </div>
     `}};Object.defineProperty(le,"styles",{enumerable:!0,configurable:!0,writable:!0,value:o`
     :host { display:block; box-sizing:border-box; padding:4px 0 8px; }
+    /* Editorbreite begrenzen, damit er nicht in die Vorschau ragt */
     .form { display:grid; gap:16px; width:100%; max-width:560px; overflow:hidden; }
 
     .section { display:grid; gap:12px; padding:8px 0; border-top:1px solid var(--divider-color, #e0e0e0); }
