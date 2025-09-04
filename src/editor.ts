@@ -59,6 +59,18 @@ export class RoomCardEditor extends LitElement {
     this.requestUpdate();
   }
 
+  private _isBuggyPicker(): boolean {
+    // HA 2025.9.x: Menüposition im Dialog/Grid fehlerhaft
+    const v = this.hass?.config?.version ?? "";
+    const m = v.match(/^(\d+)\.(\d+)\.(\d+)/);
+    if (!m) return false;
+    const major = Number(m[1]);
+    const minor = Number(m[2]);
+    return major === 2025 && minor >= 9; // ab 2025.9.* Fallback erzwingen
+  }
+
+
+  
   // ---------- helpers ----------
   private _emitChanged() {
     this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: this._config } }));
@@ -164,8 +176,10 @@ export class RoomCardEditor extends LitElement {
   }
 
   private _EntityPicker(label: string, value: string, onChange: (v: string) => void) {
-    if (has.entityPicker()) {
-      // Stabiler Anker-Wrapper – hilft Grids/Dialogs bei der Koordinatenberechnung
+    const useFallback = this._isBuggyPicker();
+  
+    if (has.entityPicker() && !useFallback) {
+      // Normaler Picker (wenn Version OK)
       return html`
         <div class="picker-anchor">
           <ha-entity-picker
@@ -177,15 +191,10 @@ export class RoomCardEditor extends LitElement {
             style="
               width:100%;
               display:block;
-  
-              /* Breite des Overlays an Eingabefeld koppeln (MWC & Vaadin) */
+              /* gleiche Breite wie Feld */
               --mdc-menu-min-width: 100%;
               --vaadin-combo-box-overlay-width: 100%;
-  
-              /* Falls MWC verwendet wird: erzwinge 'fixed' Positionierung (verhindert seitliches Wegspringen in Dialogen) */
-              --mwc-menu-surface-fixed: true;
-  
-              /* kleine vertikale Distanz unter dem Feld */
+              /* kleine Distanz nach unten */
               --mdc-menu-surface-vertical-offset: 2px;
             "
             @value-changed=${(e: any) => onChange(e.detail.value)}
@@ -193,6 +202,30 @@ export class RoomCardEditor extends LitElement {
         </div>
       `;
     }
+  
+    // Fallback: native datalist (öffnet immer unter dem Feld, ohne Overlay-Bugs)
+    const listId = `rc-entities-${++_datalistCounter}`;
+    const entities = Object.keys(this.hass?.states ?? {}).sort();
+    return html`
+      <div class="picker-anchor">
+        <label class="lbl">
+          ${label}
+          <input
+            class="plain"
+            list=${listId}
+            .value=${value ?? ""}
+            @input=${(e: any) => onChange(e.currentTarget.value)}
+            placeholder="sensor.xyz, switch.xyz, …"
+            style="width:100%;"
+          />
+        </label>
+        <datalist id=${listId}>
+          ${entities.map((eid) => html`<option value=${eid}></option>`)}
+        </datalist>
+      </div>
+    `;
+  }
+
   
     // Fallback: Input + datalist
     const listId = `rc-entities-${++_datalistCounter}`;
