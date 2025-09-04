@@ -87,4 +87,35 @@ export const style = css`
     .content-right {
         justify-content: right;
     }
+        /* --- Header alignment fix --- */
+    :host .card-header {
+      display: flex;
+      align-items: center;   /* vertikal zentrieren */
+      gap: 12px;             /* angenehmer Abstand */
+    }
+    
+    /* Container, der Icon + Text enthält (breit gefasst, falls unterschiedliche Klassennamen) */
+    :host .card-header .title,
+    :host .card-header .title-row,
+    :host .card-header .rc-title,
+    :host .card-header .name,
+    :host .card-header h1,
+    :host .card-header h2 {
+      display: flex;
+      align-items: center;   /* Icon und Text auf gleiche Höhe */
+      gap: 8px;
+      margin: 0;
+      line-height: 1.2;
+    }
+    
+    /* Icons/Badges im Header wirklich mittig in ihrer Box */
+    :host .card-header state-badge,
+    :host .card-header ha-state-icon,
+    :host .card-header ha-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      vertical-align: middle;
+    }
+
 `;
