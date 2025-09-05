@@ -646,9 +646,23 @@ export class RoomCardEditor extends LitElement {
     .icon-mode { display:flex; gap:16px; align-items:center; }
     .cond-wrap { display:grid; gap:10px; padding:8px; border:1px dashed var(--divider-color,#ddd); border-radius:8px; }
     .cond-title { font-weight:600; }
-    .cond-row { display:grid; gap:8px; grid-template-columns: 1fr; }
-    @media (min-width: 560px) {
-      .cond-row { grid-template-columns: 1fr 140px 1fr 1fr auto; align-items:end; }
+    /* Immer vertikal: jedes Feld untereinander */
+    .cond-row {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: 1fr;   /* keine Spalten nebeneinander */
+    }
+    /* Felder & Buttons volle Breite */
+    .cond-row .field,
+    .cond-row .actions {
+      width: 100%;
+    }
+    /* Select und Picker über die volle Breite */
+    ha-select {
+      width: 100%;
+      max-width: 100%;
+      box-sizing: border-box;
+      display: block;
     }
 
     /* HA-Toggles & Buttons */
