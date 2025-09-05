@@ -1,95 +1,80 @@
-import { css } from "lit";
+import { css } from 'lit';
 
 export const style = css`
-  /* Grundlayout */
   ha-card {
     display: flex;
     flex-direction: column;
   }
 
-  /* ---------- Header: saubere Vertikal-Zentrierung ---------- */
+  /* Header sauber ausrichten */
   .card-header {
-    /* macht den gesamten Header zur Flex-Zeile */
     display: flex;
-    align-items: center;         /* Icon + Titel vertikal mittig */
+    align-items: center;           /* vertikale Zentrierung */
     justify-content: space-between;
     gap: 12px;
-    padding: 12px 20px 0 20px;   /* wie vorher, nur konsistent */
-    position: relative;          /* Anker für .entities-info-row (absolute) */
-    min-height: 48px;            /* stabile Header-Höhe */
+    min-height: 48px;
+    padding: 8px 16px 0 16px;
     box-sizing: border-box;
   }
 
-  /* Block mit Icon (links) – KEIN float mehr */
-  .main-state {
+  /* Linker Titelblock (Icon + Text) */
+  .card-header > *:first-child {
     display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    margin-right: 10px;
+    align-items: center;           /* Icon + Text gleiche Höhe */
+    gap: 8px;
+    min-height: 32px;
   }
 
-  /* Icon/Badge wirklich mittig in seiner Box */
-  .main-state > ha-state-icon,
-  .main-state > ha-icon,
-  .card-header state-badge {
+  .card-header state-badge,
+  .card-header ha-state-icon,
+  .card-header ha-icon {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     vertical-align: middle;
   }
 
-  /* SVG vertikal mittig statt baseline */
-  .main-state > ha-state-icon > ha-svg-icon {
-    vertical-align: middle;
-  }
-
-  /* Titelblock: kein künstliches min-height, mittig ausrichten */
-  .title {
-    display: flex;
-    align-items: center;
-    margin: 0;
-    min-height: 0;
-    line-height: 1.2;
-  }
-
-  /* ---------- Info-Entities oben rechts (optional) ---------- */
+  /* Info-Entities rechts: Icons/Text vertikal mittig */
   .entities-info-row {
-    position: absolute;
-    right: 20px;
-    top: 50%;                    /* vertikal mittig zum Header */
-    transform: translateY(-50%);
     display: inline-flex;
     flex-direction: row;
     flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;           /* hier: vertikal mittig */
     justify-content: center;
-    align-items: center;
-    gap: 16px;
-    padding: 0 0 0 20px;         /* innen etwas Luft */
     font-size: 12px;
-    box-sizing: border-box;
+    padding-right: 4px;
+  }
+  .entities-info-row .entity {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .entities-info-row .entity ha-icon,
+  .entities-info-row .entity ha-state-icon,
+  .entities-info-row .entity state-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    vertical-align: middle;
   }
 
-  .entities-info-row .entity.icon-entity {
-    margin-right: 0;
+  /* Hauptinhalte */
+  .entity {
+    text-align: center;
+    cursor: pointer;
+  }
+  .entity span {
+    font-size: 10px;
   }
 
-  /* ---------- Entities-Zeile(n) im Card-Body ---------- */
   .entities-row {
     display: inline-flex;
     flex-direction: row;
     flex-wrap: wrap;
     align-items: center;
-    padding: 0 20px 10px 20px;
     gap: 16px;
-  }
-
-  .entity {
-    text-align: center;
-    cursor: pointer;
-  }
-
-  .entity span {
-    font-size: 10px;
+    padding: 0 20px 12px 20px;
   }
 
   .entities-column {
@@ -98,24 +83,20 @@ export const style = css`
     align-items: flex-end;
     justify-content: space-evenly;
   }
-
   .entities-column .entity div {
     display: inline-block;
     vertical-align: middle;
   }
 
-  .icon-small {
-    display: inline-block;
-  }
+  .main-state { margin-right: 10px; }
+  .main-state > ha-state-icon > ha-svg-icon { vertical-align: middle; }
+  .main-icon { vertical-align: middle; font-size: 30px; }
 
-  .main-icon {
-    font-size: 30px;
-    vertical-align: middle;
-  }
+  .title { min-height: 32px; display:inline-flex; align-items:center; }
 
   .clickable { cursor: pointer; }
 
-  .content-left   { justify-content: flex-start; }
+  .content-left   { justify-content: left; }
   .content-center { justify-content: center; }
-  .content-right  { justify-content: flex-end; }
+  .content-right  { justify-content: right; }
 `;
