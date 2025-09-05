@@ -21,7 +21,7 @@ let _radioGroupCounter = 0;
 
 type IconCondition = {
   entity: string;
-  operator?: "=" | "!=" | "<" | ">" | "<=" | ">=" | "contains"; // optional, default "="
+  operator?: "=" | "!=" | "<" | ">" | "<=" | ">=" | "contains";
   value: string;
   icon: string;
 };
@@ -33,7 +33,6 @@ type IconConditions = {
 function isObject(v: any): v is Record<string, unknown> {
   return v !== null && typeof v === "object" && !Array.isArray(v);
 }
-
 function isIconConditions(v: any): v is IconConditions {
   return isObject(v) && Array.isArray((v as any).conditions);
 }
@@ -50,7 +49,6 @@ export class RoomCardEditor extends LitElement {
 
   connectedCallback(): void {
     super.connectedCallback();
-    // Wenn HA die Komponenten lazy lädt, danach neu rendern
     ["ha-entity-picker", "ha-icon-picker"].forEach((tag) =>
       customElements.whenDefined(tag).then(() => this.requestUpdate()),
     );
@@ -79,11 +77,9 @@ export class RoomCardEditor extends LitElement {
     this.requestUpdate();
   }
 
-  // ---------- helpers ----------
   private _emitChanged() {
     this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: this._config } }));
   }
-
   private _set<K extends keyof RoomCardConfig>(key: K, value: RoomCardConfig[K]) {
     this._config = { ...(this._config as any), [key]: value } as RoomCardConfig;
     this._emitChanged();
@@ -96,14 +92,14 @@ export class RoomCardEditor extends LitElement {
     if (!Array.isArray((this._config as any).info_entities)) (this._config as any).info_entities = [];
   }
 
-  // HA 2025.9.x: Overlay-Position im Dialog zickt -> Fallback erzwingen
+  // HA 2025.9.x: Picker-Overlay-Bug → Fallback
   private _isBuggyPicker(): boolean {
     const v = this.hass?.config?.version ?? "";
     const m = v.match(/^(\d+)\.(\d+)\.(\d+)/);
     if (!m) return false;
     const major = Number(m[1]);
     const minor = Number(m[2]);
-    return major === 2025 && minor >= 9; // ab 2025.9.*
+    return major === 2025 && minor >= 9;
   }
 
   // ----- rows -----
@@ -114,7 +110,6 @@ export class RoomCardEditor extends LitElement {
     (this._config as any).rows = rows;
     this._emitChanged();
   };
-
   private _removeRow = (rowIndex: number) => {
     this._ensureRows();
     const rows = [...(this._config as any).rows];
@@ -122,7 +117,6 @@ export class RoomCardEditor extends LitElement {
     (this._config as any).rows = rows;
     this._emitChanged();
   };
-
   private _addRowEntity = (rowIndex: number) => {
     this._ensureRows();
     const rows = [...(this._config as any).rows];
@@ -133,7 +127,6 @@ export class RoomCardEditor extends LitElement {
     (this._config as any).rows = rows;
     this._emitChanged();
   };
-
   private _removeRowEntity = (rowIndex: number, entIndex: number) => {
     this._ensureRows();
     const rows = [...(this._config as any).rows];
@@ -144,7 +137,6 @@ export class RoomCardEditor extends LitElement {
     (this._config as any).rows = rows;
     this._emitChanged();
   };
-
   private _updateRowEntity = (rowIndex: number, entIndex: number, key: string, value: any) => {
     this._ensureRows();
     const rows = [...(this._config as any).rows];
@@ -158,7 +150,7 @@ export class RoomCardEditor extends LitElement {
     this._emitChanged();
   };
 
-  // ----- info entities (ohne show_state) -----
+  // ----- info entities -----
   private _addInfoEntity = () => {
     this._ensureInfo();
     const info = [...(this._config as any).info_entities];
@@ -166,7 +158,6 @@ export class RoomCardEditor extends LitElement {
     (this._config as any).info_entities = info;
     this._emitChanged();
   };
-
   private _removeInfoEntity = (index: number) => {
     this._ensureInfo();
     const info = [...(this._config as any).info_entities];
@@ -174,7 +165,6 @@ export class RoomCardEditor extends LitElement {
     (this._config as any).info_entities = info;
     this._emitChanged();
   };
-
   private _updateInfoEntity = (index: number, key: string, value: any) => {
     this._ensureInfo();
     const info = [...(this._config as any).info_entities];
@@ -185,9 +175,8 @@ export class RoomCardEditor extends LitElement {
     this._emitChanged();
   };
 
-  // ---------- UI primitives ----------
+  // ---------- UI-Primitives ----------
   private _TF(label: string, value: string, onInput: (v: string) => void) {
-    // Nur für Name/Icon-Fallbacks
     return has.textfield()
       ? html`<ha-textfield
           .value=${value ?? ""}
@@ -204,7 +193,6 @@ export class RoomCardEditor extends LitElement {
     const useFallback = this._isBuggyPicker();
 
     if (has.entityPicker() && !useFallback) {
-      // Echter HA-Entity-Picker (wenn Version OK)
       return html`
         <div class="picker-anchor">
           <ha-entity-picker
@@ -225,7 +213,6 @@ export class RoomCardEditor extends LitElement {
       `;
     }
 
-    // Fallback: native datalist (öffnet stabil unter dem Feld)
     const listId = `rc-entities-${++_datalistCounter}`;
     const entities = Object.keys(this.hass?.states ?? {}).sort();
     return html`
@@ -284,22 +271,18 @@ export class RoomCardEditor extends LitElement {
   // ---------- Icon Control (Static vs Conditional) ----------
   private _IconControl(
     label: string,
-    // entweder: string (static) ODER: {conditions:[...], else?:string} ODER: {icon_conditions:{...}}
     source: "header" | "row" | "info",
     indices: { ri?: number; ei?: number; ii?: number } | null,
     data: any,
   ) {
-    // "icon_conditions" Feld erkennen und als Quelle bevorzugen
     let value: any = (data && (data.icon_conditions ?? data.icon)) ?? "";
     const modeConditional = isIconConditions(value) || isIconConditions(data?.icon_conditions);
-
     const radioName = `rc-icon-mode-${++_radioGroupCounter}`;
 
     const setStatic = () => {
       const newIcon = typeof value === "string" ? value : "";
       this._assignIcon(source, indices, { icon: newIcon, icon_conditions: undefined });
     };
-
     const setConditional = () => {
       const obj: IconConditions = isIconConditions(value)
         ? value
@@ -310,12 +293,10 @@ export class RoomCardEditor extends LitElement {
     const updateStaticIcon = (v: string) => {
       this._assignIcon(source, indices, { icon: v, icon_conditions: undefined });
     };
-
     const updateCond = (next: IconConditions) => {
       this._assignIcon(source, indices, { icon: undefined, icon_conditions: next });
     };
 
-    // UI
     return html`
       <div class="icon-control">
         <div class="icon-mode">
@@ -324,7 +305,7 @@ export class RoomCardEditor extends LitElement {
         </div>
 
         ${modeConditional
-          ? this._IconConditionsEditor(label, value?.conditions ? (value as IconConditions) : (data.icon_conditions as IconConditions) , updateCond)
+          ? this._IconConditionsEditor(label, value?.conditions ? (value as IconConditions) : (data.icon_conditions as IconConditions), updateCond)
           : html`<div class="field">${this._IconPicker(typeof value === "string" ? value : "", updateStaticIcon)}</div>`}
       </div>
     `;
@@ -334,26 +315,20 @@ export class RoomCardEditor extends LitElement {
     const current: IconConditions = value && isIconConditions(value) ? value : { conditions: [], else: "" };
 
     const changeCond = (idx: number, patch: Partial<IconCondition>) => {
-      const next: IconConditions = {
-        conditions: [...current.conditions],
-        else: current.else ?? "",
-      };
+      const next: IconConditions = { conditions: [...current.conditions], else: current.else ?? "" };
       next.conditions[idx] = { ...next.conditions[idx], ...patch };
       onChange(next);
     };
-
     const addCond = () => {
       const next: IconConditions = { conditions: [...current.conditions], else: current.else ?? "" };
       next.conditions.push({ entity: "", operator: "=", value: "", icon: "" });
       onChange(next);
     };
-
     const removeCond = (idx: number) => {
       const next: IconConditions = { conditions: [...current.conditions], else: current.else ?? "" };
       next.conditions.splice(idx, 1);
       onChange(next);
     };
-
     const changeElse = (v: string) => {
       const next: IconConditions = { conditions: [...current.conditions], else: v };
       onChange(next);
@@ -362,11 +337,15 @@ export class RoomCardEditor extends LitElement {
     return html`
       <div class="cond-wrap">
         <div class="cond-title">${label} – Conditions</div>
+
         ${current.conditions.length
           ? current.conditions.map(
               (c, i) => html`
                 <div class="cond-row">
-                  <div class="field">${this._EntityPicker("Entity", c.entity ?? "", (v) => changeCond(i, { entity: v }))}</div>
+                  <div class="field">
+                    ${this._EntityPicker("Entity", c.entity ?? "", (v) => changeCond(i, { entity: v }))}
+                  </div>
+
                   <div class="field">
                     <ha-select
                       naturalMenuWidth
@@ -384,13 +363,18 @@ export class RoomCardEditor extends LitElement {
                       <mwc-list-item value="contains">contains</mwc-list-item>
                     </ha-select>
                   </div>
+
                   <div class="field">
                     ${this._TF("Value", c.value ?? "", (v) => changeCond(i, { value: v }))}
                   </div>
+
                   <div class="field">
                     ${this._IconPicker(c.icon ?? "", (v) => changeCond(i, { icon: v }))}
                   </div>
-                  <div class="actions">${this._Btn("Remove", () => removeCond(i), "danger")}</div>
+
+                  <div class="actions">
+                    ${this._Btn("Remove", () => removeCond(i), "danger")}
+                  </div>
                 </div>
               `,
             )
@@ -406,7 +390,6 @@ export class RoomCardEditor extends LitElement {
     `;
   }
 
-  // trägt Icon / Icon-Conditions ins passende Ziel ein
   private _assignIcon(
     source: "header" | "row" | "info",
     indices: { ri?: number; ei?: number; ii?: number } | null,
@@ -558,7 +541,7 @@ export class RoomCardEditor extends LitElement {
             : html`<div class="hint">No rows yet. Click “Add row”.</div>`}
         </div>
 
-        <!-- Info entities (ohne Show state) -->
+        <!-- Info entities -->
         <div class="section">
           <div class="section-title">
             Info entities
@@ -600,13 +583,12 @@ export class RoomCardEditor extends LitElement {
   static styles = css`
     :host { display:block; box-sizing:border-box; padding:4px 0 8px; }
 
-    /* Editorbreite begrenzen, aber Overlays NICHT abschneiden */
     .form {
       display: grid;
       gap: 16px;
       width: 100%;
       max-width: 560px;
-      overflow: visible; /* wichtig für Menüs */
+      overflow: visible;
     }
 
     .section { display:grid; gap:12px; padding:8px 0; border-top:1px solid var(--divider-color, #e0e0e0); }
@@ -617,14 +599,11 @@ export class RoomCardEditor extends LitElement {
     .row-header { display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; }
     .row-actions { display:flex; gap:8px; flex-wrap:wrap; }
 
-    /* Jedes Feld darf Overlays anzeigen */
     .entity-block { display:grid; grid-template-columns: 1fr; gap:10px; padding:8px; border:1px dashed var(--divider-color,#ddd); border-radius:8px; overflow:visible; }
     .field { min-width:0; overflow:visible; position:relative; }
 
-    /* Stabile Ankerbox für Overlays/Fallback */
     .picker-anchor { position: relative; overflow: visible; width: 100%; }
 
-    /* Eingabeelemente auf volle Breite + korrektes Box-Sizing */
     ha-entity-picker,
     ha-icon-picker,
     ha-textfield,
@@ -635,37 +614,44 @@ export class RoomCardEditor extends LitElement {
       display: block;
     }
 
-    /* Menüs gleich breit wie das Feld (wirksam bei nicht-buggy Versionen) */
     ha-entity-picker {
       --mdc-menu-min-width: 100%;
       --vaadin-combo-box-overlay-width: 100%;
     }
 
-    /* Icon-Mode Umschalter & Conditions */
+    /* --- Icon-Mode & Conditions: immer vertikal --- */
     .icon-control { display:grid; gap:8px; }
     .icon-mode { display:flex; gap:16px; align-items:center; }
+
     .cond-wrap { display:grid; gap:10px; padding:8px; border:1px dashed var(--divider-color,#ddd); border-radius:8px; }
+
     .cond-title { font-weight:600; }
-    /* Immer vertikal: jedes Feld untereinander */
-    .cond-row {
+
+    /* WICHTIG: alle Felder untereinander erzwingen */
+    .cond-wrap .cond-row {
       display: grid;
+      grid-auto-flow: row;
+      grid-template-columns: 1fr !important;  /* überschreibt evtl. alte Regeln */
       gap: 10px;
-      grid-template-columns: 1fr;   /* keine Spalten nebeneinander */
-    }
-    /* Felder & Buttons volle Breite */
-    .cond-row .field,
-    .cond-row .actions {
       width: 100%;
     }
-    /* Select und Picker über die volle Breite */
-    ha-select {
+
+    /* Jedes Kind nimmt volle Breite ein */
+    .cond-wrap .cond-row > .field,
+    .cond-wrap .cond-row > .actions {
+      grid-column: 1 / -1 !important;
+      width: 100%;
+    }
+
+    /* Selectbreite + Menübreite */
+    .cond-wrap .cond-row ha-select {
       width: 100%;
       max-width: 100%;
       box-sizing: border-box;
       display: block;
+      --mdc-menu-min-width: 100%;
     }
 
-    /* HA-Toggles & Buttons */
     .toggles { display:grid; gap:8px; align-content:start; }
     .actions { display:flex; gap:8px; justify-content:flex-end; }
 
