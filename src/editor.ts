@@ -16,9 +16,6 @@ const has = {
   entityPicker: () => !!customElements.get("ha-entity-picker"),
 };
 
-let _datalistCounter = 0;
-let _radioGroupCounter = 0;
-
 type IconCondition = {
   entity: string;
   operator?: "=" | "!=" | "<" | ">" | "<=" | ">=" | "contains";
@@ -30,17 +27,113 @@ type IconConditions = {
   else?: string;
 };
 
+let _datalistCounter = 0;
+let _radioGroupCounter = 0;
+
+/** --- i18n (DE/EN) --- */
+const STRINGS = {
+  de: {
+    header: "Header",
+    title: "Titel",
+    entityReq: "Entity (Pflichtfeld)",
+    icon: "Icon",
+    hideTitle: "Titel ausblenden",
+    rows: "Reihen",
+    addRow: "Reihe hinzufügen",
+    addEntity: "Entity hinzufügen",
+    removeRow: "Reihe entfernen",
+    remove: "Entfernen",
+    duplicate: "Duplizieren",
+    moveUp: "Nach oben",
+    moveDown: "Nach unten",
+    nameOptional: "Name (optional)",
+    showIcon: "Icon anzeigen",
+    showState: "Zustand anzeigen",
+    decimals: "Dezimalstellen",
+    unitOverride: "Einheit (Override)",
+    infoEntities: "Info Entities",
+    noRows: "Noch keine Reihen. Klicke „Reihe hinzufügen“.",
+    noEntitiesInRow: "Noch keine Entities in dieser Reihe.",
+    noInfo: "Keine Info-Entities. Klicke „Entity hinzufügen“.",
+    iconStatic: "Statisch",
+    iconConditional: "Bedingt",
+    conditions: "Bedingungen",
+    operator: "Operator",
+    value: "Wert",
+    elseIcon: "Else-Icon (optional)",
+    invalidHeaderEntity: "Header-Entity ist erforderlich.",
+    invalidRowEntity: "Mindestens eine Entity in jeder Reihe ist erforderlich.",
+    loading: "Editor wird geladen…",
+  },
+  en: {
+    header: "Header",
+    title: "Title",
+    entityReq: "Entity (required)",
+    icon: "Icon",
+    hideTitle: "Hide title",
+    rows: "Rows",
+    addRow: "Add row",
+    addEntity: "Add entity",
+    removeRow: "Remove row",
+    remove: "Remove",
+    duplicate: "Duplicate",
+    moveUp: "Move up",
+    moveDown: "Move down",
+    nameOptional: "Name (optional)",
+    showIcon: "Show icon",
+    showState: "Show state",
+    decimals: "Decimals",
+    unitOverride: "Unit (override)",
+    infoEntities: "Info entities",
+    noRows: "No rows yet. Click “Add row”.",
+    noEntitiesInRow: "No entities in this row yet.",
+    noInfo: "No info entities. Click “Add entity”.",
+    iconStatic: "Static",
+    iconConditional: "Conditional",
+    conditions: "Conditions",
+    operator: "Operator",
+    value: "Value",
+    elseIcon: "Else icon (optional)",
+    invalidHeaderEntity: "Header entity is required.",
+    invalidRowEntity: "At least one entity per row is required.",
+    loading: "Loading editor…",
+  },
+};
+
+function langOf(hass?: HomeAssistant) {
+  const l =
+    (hass?.locale as any)?.language ||
+    (hass as any)?.language ||
+    (navigator?.language || "en").slice(0, 2);
+  return l.startsWith("de") ? "de" : "en";
+}
+function t(hass: HomeAssistant | undefined, key: keyof typeof STRINGS["en"]) {
+  return STRINGS[langOf(hass)][key];
+}
+
+/** --- Helpers --- */
 function isObject(v: any): v is Record<string, unknown> {
   return v !== null && typeof v === "object" && !Array.isArray(v);
 }
 function isIconConditions(v: any): v is IconConditions {
   return isObject(v) && Array.isArray((v as any).conditions);
 }
+function coerceNumber(v: any, fallback: number | undefined): number | undefined {
+  if (v === "" || v === undefined || v === null) return fallback;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+}
+function friendlyNameOf(hass: HomeAssistant | undefined, entityId?: string) {
+  if (!hass || !entityId) return "";
+  const st = hass.states?.[entityId];
+  return (st?.attributes?.friendly_name as string) || "";
+}
 
 @customElement("room-card-editor")
 export class RoomCardEditor extends LitElement {
   @property({ attribute: false }) public hass?: HomeAssistant;
   @state() private _config?: RoomCardConfig;
+  @state() private _errors: string[] = [];
 
   constructor() {
     super();
@@ -55,8 +148,6 @@ export class RoomCardEditor extends LitElement {
   }
 
   public setConfig(config: RoomCardConfig): void {
-    console.info("ROOM-CARD-EDITOR: setConfig()", config);
-
     const safeRows = Array.isArray((config as any).rows)
       ? (config as any).rows.map((r: any) => ({
           ...r,
@@ -74,10 +165,28 @@ export class RoomCardEditor extends LitElement {
       info_entities: safeInfo,
     } as RoomCardConfig;
 
+    this._validate();
     this.requestUpdate();
   }
 
+  /** --- Validation --- */
+  private _validate() {
+    const errs: string[] = [];
+    const c: any = this._config || {};
+    if (!c.entity) errs.push(t(this.hass, "invalidHeaderEntity"));
+    if (Array.isArray(c.rows)) {
+      for (const row of c.rows) {
+        if (!Array.isArray(row.entities) || row.entities.length === 0) {
+          errs.push(t(this.hass, "invalidRowEntity"));
+          break;
+        }
+      }
+    }
+    this._errors = errs;
+  }
+
   private _emitChanged() {
+    this._validate();
     this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: this._config } }));
   }
   private _set<K extends keyof RoomCardConfig>(key: K, value: RoomCardConfig[K]) {
@@ -92,7 +201,7 @@ export class RoomCardEditor extends LitElement {
     if (!Array.isArray((this._config as any).info_entities)) (this._config as any).info_entities = [];
   }
 
-  // HA 2025.9.x: Picker-Overlay-Bug → Fallback
+  /** Buggy Picker (Overlay-Position) Workaround (falls nötig) */
   private _isBuggyPicker(): boolean {
     const v = this.hass?.config?.version ?? "";
     const m = v.match(/^(\d+)\.(\d+)\.(\d+)/);
@@ -102,7 +211,7 @@ export class RoomCardEditor extends LitElement {
     return major === 2025 && minor >= 9;
   }
 
-  // ----- rows -----
+  /** --- Rows Ops (add/remove/move/dup) --- */
   private _addRow = () => {
     this._ensureRows();
     const rows = [...(this._config as any).rows];
@@ -117,12 +226,39 @@ export class RoomCardEditor extends LitElement {
     (this._config as any).rows = rows;
     this._emitChanged();
   };
+  private _moveRow = (rowIndex: number, dir: -1 | 1) => {
+    this._ensureRows();
+    const rows = [...(this._config as any).rows];
+    const j = rowIndex + dir;
+    if (j < 0 || j >= rows.length) return;
+    [rows[rowIndex], rows[j]] = [rows[j], rows[rowIndex]];
+    (this._config as any).rows = rows;
+    this._emitChanged();
+  };
+  private _dupRow = (rowIndex: number) => {
+    this._ensureRows();
+    const rows = [...(this._config as any).rows];
+    const clone = JSON.parse(JSON.stringify(rows[rowIndex] || { entities: [] }));
+    rows.splice(rowIndex + 1, 0, clone);
+    (this._config as any).rows = rows;
+    this._emitChanged();
+  };
+
+  /** --- Row Entities Ops --- */
   private _addRowEntity = (rowIndex: number) => {
     this._ensureRows();
     const rows = [...(this._config as any).rows];
     const row = { ...(rows[rowIndex] || { entities: [] }) };
     row.entities = Array.isArray(row.entities) ? [...row.entities] : [];
-    row.entities.push({ entity: "", name: "", icon: "", show_icon: true, show_state: true });
+    row.entities.push({
+      entity: "",
+      name: "",
+      icon: "",
+      show_icon: true,
+      show_state: true,
+      decimals: undefined,
+      unit: "",
+    });
     rows[rowIndex] = row;
     (this._config as any).rows = rows;
     this._emitChanged();
@@ -133,6 +269,29 @@ export class RoomCardEditor extends LitElement {
     const row = { ...(rows[rowIndex] || { entities: [] }) };
     row.entities = Array.isArray(row.entities) ? [...row.entities] : [];
     row.entities.splice(entIndex, 1);
+    rows[rowIndex] = row;
+    (this._config as any).rows = rows;
+    this._emitChanged();
+  };
+  private _moveRowEntity = (rowIndex: number, entIndex: number, dir: -1 | 1) => {
+    this._ensureRows();
+    const rows = [...(this._config as any).rows];
+    const row = { ...(rows[rowIndex] || { entities: [] }) };
+    row.entities = Array.isArray(row.entities) ? [...row.entities] : [];
+    const j = entIndex + dir;
+    if (j < 0 || j >= row.entities.length) return;
+    [row.entities[entIndex], row.entities[j]] = [row.entities[j], row.entities[entIndex]];
+    rows[rowIndex] = row;
+    (this._config as any).rows = rows;
+    this._emitChanged();
+  };
+  private _dupRowEntity = (rowIndex: number, entIndex: number) => {
+    this._ensureRows();
+    const rows = [...(this._config as any).rows];
+    const row = { ...(rows[rowIndex] || { entities: [] }) };
+    row.entities = Array.isArray(row.entities) ? [...row.entities] : [];
+    const clone = JSON.parse(JSON.stringify(row.entities[entIndex] || {}));
+    row.entities.splice(entIndex + 1, 0, clone);
     rows[rowIndex] = row;
     (this._config as any).rows = rows;
     this._emitChanged();
@@ -150,7 +309,7 @@ export class RoomCardEditor extends LitElement {
     this._emitChanged();
   };
 
-  // ----- info entities -----
+  /** --- Info Entities --- */
   private _addInfoEntity = () => {
     this._ensureInfo();
     const info = [...(this._config as any).info_entities];
@@ -165,6 +324,23 @@ export class RoomCardEditor extends LitElement {
     (this._config as any).info_entities = info;
     this._emitChanged();
   };
+  private _moveInfoEntity = (index: number, dir: -1 | 1) => {
+    this._ensureInfo();
+    const info = [...(this._config as any).info_entities];
+    const j = index + dir;
+    if (j < 0 || j >= info.length) return;
+    [info[index], info[j]] = [info[j], info[index]];
+    (this._config as any).info_entities = info;
+    this._emitChanged();
+  };
+  private _dupInfoEntity = (index: number) => {
+    this._ensureInfo();
+    const info = [...(this._config as any).info_entities];
+    const clone = JSON.parse(JSON.stringify(info[index] || {}));
+    info.splice(index + 1, 0, clone);
+    (this._config as any).info_entities = info;
+    this._emitChanged();
+  };
   private _updateInfoEntity = (index: number, key: string, value: any) => {
     this._ensureInfo();
     const info = [...(this._config as any).info_entities];
@@ -175,7 +351,7 @@ export class RoomCardEditor extends LitElement {
     this._emitChanged();
   };
 
-  // ---------- UI-Primitives ----------
+  /** --- UI Primitives --- */
   private _TF(label: string, value: string, onInput: (v: string) => void) {
     return has.textfield()
       ? html`<ha-textfield
@@ -188,9 +364,35 @@ export class RoomCardEditor extends LitElement {
           <input class="plain" .value=${value ?? ""} @input=${(e: any) => onInput(e.currentTarget.value)} />
         </label>`;
   }
+  private _NumTF(label: string, value: number | undefined, onInput: (v: number | undefined) => void) {
+    return has.textfield()
+      ? html`<ha-textfield
+          type="number"
+          .value=${value ?? ""}
+          label=${label}
+          @input=${(e: any) => onInput(coerceNumber(e.currentTarget.value, undefined))}
+        ></ha-textfield>`
+      : html`<label class="lbl">
+          ${label}
+          <input
+            class="plain"
+            type="number"
+            .value=${value ?? ""}
+            @input=${(e: any) => onInput(coerceNumber(e.currentTarget.value, undefined))}
+          />
+        </label>`;
+  }
 
-  private _EntityPicker(label: string, value: string, onChange: (v: string) => void) {
+  private _EntityPicker(label: string, value: string, onChange: (v: string) => void, onAutoName?: (n: string)=>void) {
     const useFallback = this._isBuggyPicker();
+
+    const handleSelected = (v: string) => {
+      onChange(v);
+      if (onAutoName) {
+        const fn = friendlyNameOf(this.hass, v);
+        if (fn) onAutoName(fn);
+      }
+    };
 
     if (has.entityPicker() && !useFallback) {
       return html`
@@ -207,7 +409,7 @@ export class RoomCardEditor extends LitElement {
               --vaadin-combo-box-overlay-width: 100%;
               --mdc-menu-surface-vertical-offset: 2px;
             "
-            @value-changed=${(e: any) => onChange(e.detail.value)}
+            @value-changed=${(e: any) => handleSelected(e.detail.value)}
           ></ha-entity-picker>
         </div>
       `;
@@ -223,6 +425,7 @@ export class RoomCardEditor extends LitElement {
             class="plain"
             list=${listId}
             .value=${value ?? ""}
+            @change=${(e: any) => handleSelected(e.currentTarget.value)}
             @input=${(e: any) => onChange(e.currentTarget.value)}
             placeholder="sensor.xyz, switch.xyz, …"
             style="width:100%;"
@@ -235,14 +438,24 @@ export class RoomCardEditor extends LitElement {
     `;
   }
 
-  private _IconPicker(value: string, onChange: (v: string) => void) {
-    return has.iconPicker()
-      ? html`<ha-icon-picker
-          .value=${value ?? ""}
-          label="Icon"
-          @value-changed=${(e: any) => onChange(e.detail.value)}
-        ></ha-icon-picker>`
-      : this._TF("Icon (mdi:…)", value, onChange);
+  private _IconPicker(value: string, onChange: (v: string) => void, preview?: string) {
+    const pick =
+      has.iconPicker()
+        ? html`<ha-icon-picker
+            .value=${value ?? ""}
+            label=${t(this.hass, "icon")}
+            @value-changed=${(e: any) => onChange(e.detail.value)}
+          ></ha-icon-picker>`
+        : this._TF("Icon (mdi:…)", value, onChange);
+
+    return html`
+      <div class="icon-row">
+        <div class="icon-preview">
+          <ha-icon .icon=${preview || value || "mdi:help-circle-outline"}></ha-icon>
+        </div>
+        <div class="icon-input">${pick}</div>
+      </div>
+    `;
   }
 
   private _Switch(label: string, checked: boolean, onChange: (v: boolean) => void) {
@@ -268,7 +481,35 @@ export class RoomCardEditor extends LitElement {
       : html`<button class="plain-btn ${kind}" @click=${onClick}>${label}</button>`;
   }
 
-  // ---------- Icon Control (Static vs Conditional) ----------
+  /** --- Icon Preview evaluation (simple) --- */
+  private _evalIconPreview(ic: IconConditions | undefined): string | undefined {
+    if (!ic || !Array.isArray(ic.conditions) || !this.hass) return undefined;
+    const H = this.hass;
+    for (const c of ic.conditions) {
+      const st = c.entity && H.states[c.entity];
+      if (!st) continue;
+      const left = String((st.state ?? "")).toLowerCase();
+      const right = String(c.value ?? "").toLowerCase();
+      const op = c.operator ?? "=";
+      let ok = false;
+      if (op === "=") ok = left === right;
+      else if (op === "!=") ok = left !== right;
+      else if (op === "contains") ok = left.includes(right);
+      else {
+        const ln = Number(st.state); const rn = Number(c.value);
+        if (Number.isFinite(ln) && Number.isFinite(rn)) {
+          if (op === "<") ok = ln < rn;
+          else if (op === ">") ok = ln > rn;
+          else if (op === "<=") ok = ln <= rn;
+          else if (op === ">=") ok = ln >= rn;
+        }
+      }
+      if (ok && c.icon) return c.icon;
+    }
+    return ic.else || undefined;
+  }
+
+  /** --- Icon Control (Static vs Conditional) --- */
   private _IconControl(
     label: string,
     source: "header" | "row" | "info",
@@ -297,21 +538,31 @@ export class RoomCardEditor extends LitElement {
       this._assignIcon(source, indices, { icon: undefined, icon_conditions: next });
     };
 
+    const preview =
+      modeConditional
+        ? this._evalIconPreview((value?.conditions ? value : data.icon_conditions) as IconConditions)
+        : (typeof value === "string" ? value : undefined);
+
     return html`
       <div class="icon-control">
         <div class="icon-mode">
-          <label><input type="radio" name=${radioName} .checked=${!modeConditional} @change=${setStatic} /> Static</label>
-          <label><input type="radio" name=${radioName} .checked=${modeConditional} @change=${setConditional} /> Conditional</label>
+          <label><input type="radio" name=${radioName} .checked=${!modeConditional} @change=${setStatic} /> ${t(this.hass,"iconStatic")}</label>
+          <label><input type="radio" name=${radioName} .checked=${modeConditional} @change=${setConditional} /> ${t(this.hass,"iconConditional")}</label>
         </div>
 
         ${modeConditional
-          ? this._IconConditionsEditor(label, value?.conditions ? (value as IconConditions) : (data.icon_conditions as IconConditions), updateCond)
-          : html`<div class="field">${this._IconPicker(typeof value === "string" ? value : "", updateStaticIcon)}</div>`}
+          ? this._IconConditionsEditor(label, value?.conditions ? (value as IconConditions) : (data.icon_conditions as IconConditions), updateCond, preview)
+          : html`<div class="field">${this._IconPicker(typeof value === "string" ? value : "", updateStaticIcon, preview)}</div>`}
       </div>
     `;
   }
 
-  private _IconConditionsEditor(label: string, value: IconConditions | undefined, onChange: (v: IconConditions) => void) {
+  private _IconConditionsEditor(
+    label: string,
+    value: IconConditions | undefined,
+    onChange: (v: IconConditions) => void,
+    preview?: string,
+  ) {
     const current: IconConditions = value && isIconConditions(value) ? value : { conditions: [], else: "" };
 
     const changeCond = (idx: number, patch: Partial<IconCondition>) => {
@@ -336,7 +587,7 @@ export class RoomCardEditor extends LitElement {
 
     return html`
       <div class="cond-wrap">
-        <div class="cond-title">${label} – Conditions</div>
+        <div class="cond-title">${label} – ${t(this.hass, "conditions")}</div>
 
         ${current.conditions.length
           ? current.conditions.map(
@@ -349,7 +600,7 @@ export class RoomCardEditor extends LitElement {
                   <div class="field">
                     <ha-select
                       naturalMenuWidth
-                      label="Operator"
+                      label=${t(this.hass, "operator")}
                       .value=${c.operator ?? "="}
                       @selected=${(e: any) => changeCond(i, { operator: (e.target as any).value })}
                       @closed=${(e: any) => e.stopPropagation()}
@@ -365,7 +616,7 @@ export class RoomCardEditor extends LitElement {
                   </div>
 
                   <div class="field">
-                    ${this._TF("Value", c.value ?? "", (v) => changeCond(i, { value: v }))}
+                    ${this._TF(t(this.hass, "value"), c.value ?? "", (v) => changeCond(i, { value: v }))}
                   </div>
 
                   <div class="field">
@@ -373,7 +624,7 @@ export class RoomCardEditor extends LitElement {
                   </div>
 
                   <div class="actions">
-                    ${this._Btn("Remove", () => removeCond(i), "danger")}
+                    ${this._Btn(t(this.hass, "remove"), () => removeCond(i), "danger")}
                   </div>
                 </div>
               `,
@@ -383,9 +634,9 @@ export class RoomCardEditor extends LitElement {
         <div class="actions">${this._Btn("Add condition", addCond, "ghost")}</div>
 
         <div class="field">
-          ${this._IconPicker(current.else ?? "", changeElse)}
+          ${this._IconPicker(current.else ?? "", changeElse, preview)}
         </div>
-        <div class="hint">Optional “else” icon (used if no condition matches).</div>
+        <div class="hint">${t(this.hass, "elseIcon")}</div>
       </div>
     `;
   }
@@ -452,35 +703,47 @@ export class RoomCardEditor extends LitElement {
     }
   }
 
-  // ---------- render ----------
+  /** --- render --- */
   protected render(): TemplateResult {
-    if (!this._config) return html`<div class="hint">Loading editor…</div>`;
+    if (!this._config) return html`<div class="hint">${t(this.hass, "loading")}</div>`;
     const c: any = this._config;
 
     return html`
       <div class="form">
+        <!-- Errors -->
+        ${this._errors.length
+          ? html`<div class="errors">${this._errors.map((e) => html`<div class="error">${e}</div>`)}</div>`
+          : null}
+
         <!-- Header -->
         <div class="section">
-          <div class="section-title">Header</div>
+          <div class="section-title">${t(this.hass, "header")}</div>
           <div class="field">
-            ${this._TF("Title", c.title ?? "", (v) => this._set("title", v))}
+            ${this._TF(t(this.hass, "title"), c.title ?? "", (v) => this._set("title", v))}
           </div>
           <div class="field">
-            ${this._EntityPicker("Entity (required)", c.entity ?? "", (v) => this._set("entity", v))}
+            ${this._EntityPicker(
+              t(this.hass, "entityReq"),
+              c.entity ?? "",
+              (v) => this._set("entity", v),
+              (auto) => { if (!c.title || c.title === "Room") this._set("title", auto); }
+            )}
           </div>
           <div class="field">
-            ${this._IconControl("Icon", "header", null, c)}
+            ${this._IconControl(t(this.hass, "icon"), "header", null, c)}
           </div>
           <div class="toggles">
-            ${this._Switch("Hide title", !!c.hide_title, (v) => this._set("hide_title", v))}
+            ${this._Switch(t(this.hass, "hideTitle"), !!c.hide_title, (v) => this._set("hide_title", v))}
           </div>
         </div>
 
         <!-- Rows -->
         <div class="section">
           <div class="section-title">
-            Rows
-            ${this._Btn("Add row", this._addRow)}
+            ${t(this.hass, "rows")}
+            <span class="row-toolbar">
+              ${this._Btn(t(this.hass, "addRow"), this._addRow)}
+            </span>
           </div>
 
           ${(c.rows ?? []).length
@@ -490,8 +753,11 @@ export class RoomCardEditor extends LitElement {
                     <div class="row-header">
                       <div class="row-title">Row ${ri + 1}</div>
                       <div class="row-actions">
-                        ${this._Btn("Add entity", () => this._addRowEntity(ri), "ghost")}
-                        ${this._Btn("Remove row", () => this._removeRow(ri), "danger")}
+                        ${this._Btn(t(this.hass, "moveUp"), () => this._moveRow(ri, -1), "ghost")}
+                        ${this._Btn(t(this.hass, "moveDown"), () => this._moveRow(ri, +1), "ghost")}
+                        ${this._Btn(t(this.hass, "duplicate"), () => this._dupRow(ri), "ghost")}
+                        ${this._Btn(t(this.hass, "removeRow"), () => this._removeRow(ri), "danger")}
+                        ${this._Btn(t(this.hass, "addEntity"), () => this._addRowEntity(ri))}
                       </div>
                     </div>
 
@@ -504,11 +770,14 @@ export class RoomCardEditor extends LitElement {
                                   "Entity",
                                   ent.entity ?? "",
                                   (v) => this._updateRowEntity(ri, ei, "entity", v),
+                                  (auto) => {
+                                    if (!ent.name) this._updateRowEntity(ri, ei, "name", auto);
+                                  }
                                 )}
                               </div>
                               <div class="field">
                                 ${this._TF(
-                                  "Name (optional)",
+                                  t(this.hass, "nameOptional"),
                                   ent.name ?? "",
                                   (v) => this._updateRowEntity(ri, ei, "name", v),
                                 )}
@@ -518,34 +787,49 @@ export class RoomCardEditor extends LitElement {
                               </div>
                               <div class="toggles">
                                 ${this._Switch(
-                                  "Show icon",
+                                  t(this.hass, "showIcon"),
                                   ent.show_icon !== false,
                                   (v) => this._updateRowEntity(ri, ei, "show_icon", v),
                                 )}
                                 ${this._Switch(
-                                  "Show state",
+                                  t(this.hass, "showState"),
                                   ent.show_state !== false,
                                   (v) => this._updateRowEntity(ri, ei, "show_state", v),
                                 )}
                               </div>
+                              <div class="field two">
+                                ${this._NumTF(
+                                  t(this.hass, "decimals"),
+                                  ent.decimals,
+                                  (v) => this._updateRowEntity(ri, ei, "decimals", v),
+                                )}
+                                ${this._TF(
+                                  t(this.hass, "unitOverride"),
+                                  ent.unit ?? "",
+                                  (v) => this._updateRowEntity(ri, ei, "unit", v),
+                                )}
+                              </div>
                               <div class="actions">
-                                ${this._Btn("Remove", () => this._removeRowEntity(ri, ei), "danger")}
+                                ${this._Btn(t(this.hass, "moveUp"), () => this._moveRowEntity(ri, ei, -1), "ghost")}
+                                ${this._Btn(t(this.hass, "moveDown"), () => this._moveRowEntity(ri, ei, +1), "ghost")}
+                                ${this._Btn(t(this.hass, "duplicate"), () => this._dupRowEntity(ri, ei), "ghost")}
+                                ${this._Btn(t(this.hass, "remove"), () => this._removeRowEntity(ri, ei), "danger")}
                               </div>
                             </div>
                           `,
                         )
-                      : html`<div class="hint">No entities in this row yet.</div>`}
+                      : html`<div class="hint">${t(this.hass, "noEntitiesInRow")}</div>`}
                   </div>
                 `,
               )
-            : html`<div class="hint">No rows yet. Click “Add row”.</div>`}
+            : html`<div class="hint">${t(this.hass, "noRows")}</div>`}
         </div>
 
         <!-- Info entities -->
         <div class="section">
           <div class="section-title">
-            Info entities
-            ${this._Btn("Add entity", this._addInfoEntity)}
+            ${t(this.hass, "infoEntities")}
+            ${this._Btn(t(this.hass, "addEntity"), this._addInfoEntity)}
           </div>
 
           ${Array.isArray(c.info_entities) && c.info_entities.length
@@ -553,28 +837,32 @@ export class RoomCardEditor extends LitElement {
                 (ent: any, i: number) => html`
                   <div class="entity-block">
                     <div class="field">
-                      ${this._EntityPicker("Entity", ent.entity ?? "", (v) => this._updateInfoEntity(i, "entity", v))}
+                      ${this._EntityPicker("Entity", ent.entity ?? "", (v) => this._updateInfoEntity(i, "entity", v),
+                        (auto) => { if (!ent.name) this._updateInfoEntity(i, "name", auto); })}
                     </div>
                     <div class="field">
-                      ${this._TF("Name (optional)", ent.name ?? "", (v) => this._updateInfoEntity(i, "name", v))}
+                      ${this._TF(t(this.hass, "nameOptional"), ent.name ?? "", (v) => this._updateInfoEntity(i, "name", v))}
                     </div>
                     <div class="field">
                       ${this._IconControl("Icon", "info", { ii: i }, ent)}
                     </div>
                     <div class="toggles">
                       ${this._Switch(
-                        "Show icon",
+                        t(this.hass, "showIcon"),
                         ent.show_icon !== false,
                         (v) => this._updateInfoEntity(i, "show_icon", v),
                       )}
                     </div>
                     <div class="actions">
-                      ${this._Btn("Remove", () => this._removeInfoEntity(i), "danger")}
+                      ${this._Btn(t(this.hass, "moveUp"), () => this._moveInfoEntity(i, -1), "ghost")}
+                      ${this._Btn(t(this.hass, "moveDown"), () => this._moveInfoEntity(i, +1), "ghost")}
+                      ${this._Btn(t(this.hass, "duplicate"), () => this._dupInfoEntity(i), "ghost")}
+                      ${this._Btn(t(this.hass, "remove"), () => this._removeInfoEntity(i), "danger")}
                     </div>
                   </div>
                 `,
               )
-            : html`<div class="hint">No info entities. Click “Add entity”.</div>`}
+            : html`<div class="hint">${t(this.hass, "noInfo")}</div>`}
         </div>
       </div>
     `;
@@ -587,13 +875,17 @@ export class RoomCardEditor extends LitElement {
       display: grid;
       gap: 16px;
       width: 100%;
-      max-width: 560px;
+      max-width: 620px;
       overflow: visible;
     }
+
+    .errors { display:grid; gap:6px; }
+    .error { color: var(--error-color, #d32f2f); font-weight: 600; }
 
     .section { display:grid; gap:12px; padding:8px 0; border-top:1px solid var(--divider-color, #e0e0e0); }
     .section:first-child { border-top:none; }
     .section-title { display:flex; align-items:center; justify-content:space-between; gap:12px; font-weight:600; flex-wrap:wrap; }
+    .row-toolbar { display:flex; gap:8px; }
 
     .row-card { border:1px solid var(--divider-color, #e0e0e0); border-radius:10px; padding:10px; display:grid; gap:12px; }
     .row-header { display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; }
@@ -601,13 +893,15 @@ export class RoomCardEditor extends LitElement {
 
     .entity-block { display:grid; grid-template-columns: 1fr; gap:10px; padding:8px; border:1px dashed var(--divider-color,#ddd); border-radius:8px; overflow:visible; }
     .field { min-width:0; overflow:visible; position:relative; }
+    .field.two { display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
 
     .picker-anchor { position: relative; overflow: visible; width: 100%; }
 
     ha-entity-picker,
     ha-icon-picker,
     ha-textfield,
-    ha-combo-box {
+    ha-combo-box,
+    ha-select {
       width: 100%;
       max-width: 100%;
       box-sizing: border-box;
@@ -619,31 +913,30 @@ export class RoomCardEditor extends LitElement {
       --vaadin-combo-box-overlay-width: 100%;
     }
 
-    /* --- Icon-Mode & Conditions: immer vertikal --- */
+    /* Icon preview row */
+    .icon-row { display:grid; grid-template-columns: auto 1fr; align-items:center; gap:10px; }
+    .icon-preview { width: 36px; height: 36px; display:flex; align-items:center; justify-content:center; }
+    .icon-preview ha-icon { --mdc-icon-size: 24px; }
+
+    /* Icon-Mode & Conditions: immer vertikal */
     .icon-control { display:grid; gap:8px; }
     .icon-mode { display:flex; gap:16px; align-items:center; }
 
     .cond-wrap { display:grid; gap:10px; padding:8px; border:1px dashed var(--divider-color,#ddd); border-radius:8px; }
-
     .cond-title { font-weight:600; }
 
-    /* WICHTIG: alle Felder untereinander erzwingen */
     .cond-wrap .cond-row {
       display: grid;
       grid-auto-flow: row;
-      grid-template-columns: 1fr !important;  /* überschreibt evtl. alte Regeln */
+      grid-template-columns: 1fr !important;
       gap: 10px;
       width: 100%;
     }
-
-    /* Jedes Kind nimmt volle Breite ein */
     .cond-wrap .cond-row > .field,
     .cond-wrap .cond-row > .actions {
       grid-column: 1 / -1 !important;
       width: 100%;
     }
-
-    /* Selectbreite + Menübreite */
     .cond-wrap .cond-row ha-select {
       width: 100%;
       max-width: 100%;
